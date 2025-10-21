@@ -47,16 +47,17 @@ const TournamentManager = () => {
     localStorage.setItem('tournamentData', JSON.stringify(data));
   }, [currentStep, players, groups, qualifiedPlayers, eliminatedPlayers, knockoutMatches, winner]);
 
-  const resetTournament = () => {
-    if (window.confirm('Voulez-vous vraiment réinitialiser le tournoi ? Toutes les données seront perdues.')) {
-      setCurrentStep(1);
-      setPlayers([]);
-      setGroups([]);
-      setQualifiedPlayers([]);
-      setEliminatedPlayers([]);
-      setKnockoutMatches([]);
-      setWinner(null);
-      localStorage.removeItem('tournamentData');
+  const handleResetTournament = () => {
+    // Étape A - Confirmation
+    const confirmed = window.confirm('Êtes-vous sûr de vouloir tout recommencer ?');
+    
+    // Étape B - Condition
+    if (confirmed) {
+      // Étape C - Nettoyage du localStorage
+      localStorage.clear();
+      
+      // Étape D - Rechargement de la page
+      window.location.reload();
     }
   };
 
