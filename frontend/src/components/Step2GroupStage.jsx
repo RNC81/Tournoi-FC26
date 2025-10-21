@@ -20,16 +20,88 @@ const Step2GroupStage = ({ players, groups, setGroups, onComplete }) => {
     }
   }, [groups]);
 
+  const calculateOptimalGroupDistribution = (totalPlayers) => {
+    if (totalPlayers < 3) {
+      return [totalPlayers];
+    }
+
+    const tryDistribution = (groupSizes) => {
+      const total = groupSizes.reduce((sum, size) => sum + size, 0);
+      if (total !== totalPlayers) return null;
+      
+      const hasInvalidGroup = groupSizes.some(size => size < 3 || size > 5);
+      if (hasInvalidGroup) return null;
+      
+      const avg = totalPlayers / groupSizes.length;
+      const variance = groupSizes.reduce((sum, size) => sum + Math.pow(size - avg, 2), 0) / groupSizes.length;
+      
+      return { groupSizes, variance };
+    };
+
+    let bestDistribution = null;
+    let minVariance = Infinity;
+
+    const groupsOf4 = Math.floor(totalPlayers / 4);
+    const remainder = totalPlayers % 4;
+
+    if (remainder === 0) {
+      return Array(groupsOf4).fill(4);
+    } else if (remainder === 1) {
+      if (groupsOf4 >= 2) {
+        const option1 = tryDistribution([...Array(groupsOf4 - 1).fill(4), 5]);
+        const option2 = tryDistribution([...Array(groupsOf4 - 2).fill(4), 3, 3, 3]);
+        
+        if (option1 && option1.variance < minVariance) {
+          bestDistribution = option1.groupSizes;
+          minVariance = option1.variance;
+        }
+        if (option2 && option2.variance < minVariance) {
+          bestDistribution = option2.groupSizes;
+        }
+      } else {
+        return [5];
+      }
+    } else if (remainder === 2) {
+      if (groupsOf4 >= 2) {
+        const option1 = tryDistribution([...Array(groupsOf4 - 1).fill(4), 3, 3]);
+        const option2 = tryDistribution([...Array(groupsOf4).fill(4).slice(0, -2), 5, 5]);
+        
+        if (option1 && option1.variance < minVariance) {
+          bestDistribution = option1.groupSizes;
+          minVariance = option1.variance;
+        }
+        if (option2 && option2.variance < minVariance) {
+          bestDistribution = option2.groupSizes;
+        }
+      } else if (totalPlayers === 6) {
+        return [3, 3];
+      } else if (totalPlayers === 10) {
+        return [5, 5];
+      }
+    } else if (remainder === 3) {
+      if (totalPlayers === 3) {
+        return [3];
+      } else if (totalPlayers === 7) {
+        return [4, 3];
+      } else if (totalPlayers === 11) {
+        return [4, 4, 3];
+      } else {
+        return [...Array(groupsOf4).fill(4), 3];
+      }
+    }
+
+    return bestDistribution || [4];
+  };
+
   const generateGroups = () => {
     const shuffled = [...players].sort(() => Math.random() - 0.5);
-    const groupSize = 4;
-    const numGroups = Math.ceil(shuffled.length / groupSize);
+    const groupSizes = calculateOptimalGroupDistribution(shuffled.length);
     const newGroups = [];
-
-    for (let i = 0; i < numGroups; i++) {
-      const start = i * groupSize;
-      const end = start + groupSize;
-      const groupPlayers = shuffled.slice(start, end).map((name) => ({
+    
+    let playerIndex = 0;
+    for (let i = 0; i < groupSizes.length; i++) {
+      const groupSize = groupSizes[i];
+      const groupPlayers = shuffled.slice(playerIndex, playerIndex + groupSize).map((name) => ({
         name,
         played: 0,
         won: 0,
@@ -59,13 +131,17 @@ const Step2GroupStage = ({ players, groups, setGroups, onComplete }) => {
         players: groupPlayers,
         matches,
       });
+      
+      playerIndex += groupSize;
     }
 
     setGeneratedGroups(newGroups);
     setGroups(newGroups);
+    
+    const groupInfo = groupSizes.map((size, idx) => `Poule ${String.fromCharCode(65 + idx)}: ${size} joueurs`).join(', ');
     toast({
       title: 'Tirage effectué',
-      description: `${numGroups} poule(s) créée(s) avec succès !`,
+      description: `${newGroups.length} poule(s) créée(s) avec succès ! (${groupInfo})`,
     });
   };
 
