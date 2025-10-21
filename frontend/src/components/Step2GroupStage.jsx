@@ -25,72 +25,53 @@ const Step2GroupStage = ({ players, groups, setGroups, onComplete }) => {
       return [totalPlayers];
     }
 
-    const tryDistribution = (groupSizes) => {
-      const total = groupSizes.reduce((sum, size) => sum + size, 0);
-      if (total !== totalPlayers) return null;
-      
-      const hasInvalidGroup = groupSizes.some(size => size < 3 || size > 5);
-      if (hasInvalidGroup) return null;
-      
-      const avg = totalPlayers / groupSizes.length;
-      const variance = groupSizes.reduce((sum, size) => sum + Math.pow(size - avg, 2), 0) / groupSizes.length;
-      
-      return { groupSizes, variance };
-    };
+    // Special cases for small numbers
+    if (totalPlayers === 3) return [3];
+    if (totalPlayers === 4) return [4];
+    if (totalPlayers === 5) return [5];
+    if (totalPlayers === 6) return [3, 3];
+    if (totalPlayers === 7) return [4, 3];
+    if (totalPlayers === 8) return [4, 4];
+    if (totalPlayers === 9) return [3, 3, 3];
+    if (totalPlayers === 10) return [5, 5];
+    if (totalPlayers === 11) return [4, 4, 3];
+    if (totalPlayers === 12) return [4, 4, 4];
+    if (totalPlayers === 13) return [5, 4, 4];
+    if (totalPlayers === 14) return [5, 5, 4];
+    if (totalPlayers === 15) return [5, 5, 5];
 
-    let bestDistribution = null;
-    let minVariance = Infinity;
-
+    // General algorithm for larger numbers
     const groupsOf4 = Math.floor(totalPlayers / 4);
     const remainder = totalPlayers % 4;
 
     if (remainder === 0) {
+      // Perfect division by 4
       return Array(groupsOf4).fill(4);
     } else if (remainder === 1) {
-      if (groupsOf4 >= 2) {
-        const option1 = tryDistribution([...Array(groupsOf4 - 1).fill(4), 5]);
-        const option2 = tryDistribution([...Array(groupsOf4 - 2).fill(4), 3, 3, 3]);
-        
-        if (option1 && option1.variance < minVariance) {
-          bestDistribution = option1.groupSizes;
-          minVariance = option1.variance;
-        }
-        if (option2 && option2.variance < minVariance) {
-          bestDistribution = option2.groupSizes;
-        }
+      // 4n+1: prefer (n-1) groups of 4 + 1 group of 5
+      if (groupsOf4 >= 1) {
+        return [...Array(groupsOf4 - 1).fill(4), 5];
       } else {
         return [5];
       }
     } else if (remainder === 2) {
+      // 4n+2: prefer 2 groups of 5 if n>=2, else (n-1) groups of 4 + 2 groups of 3
       if (groupsOf4 >= 2) {
-        const option1 = tryDistribution([...Array(groupsOf4 - 1).fill(4), 3, 3]);
-        const option2 = tryDistribution([...Array(groupsOf4).fill(4).slice(0, -2), 5, 5]);
-        
-        if (option1 && option1.variance < minVariance) {
-          bestDistribution = option1.groupSizes;
-          minVariance = option1.variance;
+        // For 10+: prefer groups of 5
+        if (totalPlayers >= 10 && groupsOf4 >= 2) {
+          return [...Array(groupsOf4 - 2).fill(4), 5, 5];
+        } else {
+          return [...Array(groupsOf4 - 1).fill(4), 3, 3];
         }
-        if (option2 && option2.variance < minVariance) {
-          bestDistribution = option2.groupSizes;
-        }
-      } else if (totalPlayers === 6) {
+      } else {
         return [3, 3];
-      } else if (totalPlayers === 10) {
-        return [5, 5];
       }
     } else if (remainder === 3) {
-      if (totalPlayers === 3) {
-        return [3];
-      } else if (totalPlayers === 7) {
-        return [4, 3];
-      } else if (totalPlayers === 11) {
-        return [4, 4, 3];
-      } else {
-        return [...Array(groupsOf4).fill(4), 3];
-      }
+      // 4n+3: n groups of 4 + 1 group of 3
+      return [...Array(groupsOf4).fill(4), 3];
     }
 
-    return bestDistribution || [4];
+    return [4];
   };
 
   const generateGroups = () => {
