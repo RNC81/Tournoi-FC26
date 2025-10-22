@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Trophy, Edit, Crown, Loader2 } from 'lucide-react'; // Ajout Loader2
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog'; // Ajout DialogFooter
@@ -18,13 +18,15 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
   const { toast } = useToast();
 
    // Mettre à jour si les props changent (ex: après mise à jour score)
-    useState(() => {
-        setMatches(knockoutMatches || []);
-    }, [knockoutMatches]);
+    // Lignes 17-21 (CORRIGÉES)
+    // Mettre à jour l'état local si les props changent
+  useEffect(() => {
+      setMatches(knockoutMatches || []);
+  }, [knockoutMatches]); // Dépendance: knockoutMatches
 
-    useState(() => {
-        setChampion(winner);
-    }, [winner]);
+  useEffect(() => {
+      setChampion(winner);
+  }, [winner]); // Dépendance: winner
 
 
   const handleMatchClick = (match) => {
