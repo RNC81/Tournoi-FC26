@@ -1,243 +1,84 @@
 import { useState, useEffect } from 'react';
-import { Shuffle, ArrowRight, Edit } from 'lucide-react';
+import { Shuffle, ArrowRight, Edit, Loader2 } from 'lucide-react'; // Ajout Loader2
 import { Button } from './ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog'; // Ajout DialogFooter
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useToast } from '../hooks/use-toast';
+import { drawGroups, updateScore } from '../api'; // Import API calls
 
-const Step2GroupStage = ({ players, groups, setGroups, onComplete }) => {
-  const [generatedGroups, setGeneratedGroups] = useState(groups.length > 0 ? groups : []);
-  const [selectedMatch, setSelectedMatch] = useState(null);
+const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScoreUpdate, onCompleteGroups }) => {
+  const [generatedGroups, setGeneratedGroups] = useState(groups || []);
+  const [selectedMatch, setSelectedMatch] = useState(null); // { groupIndex: number, matchId: string }
   const [score1, setScore1] = useState('');
   const [score2, setScore2] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDrawing, setIsDrawing] = useState(false); // Pour le bouton Tirage
+  const [isSavingScore, setIsSavingScore] = useState(false); // Pour le bouton Valider score
   const { toast } = useToast();
 
   useEffect(() => {
-    if (groups.length > 0) {
-      setGeneratedGroups(groups);
-    }
+    setGeneratedGroups(groups || []);
   }, [groups]);
 
-  const calculateOptimalGroupDistribution = (totalPlayers) => {
-    if (totalPlayers < 3) {
-      return [totalPlayers];
+  const handleDrawGroups = async () => {
+    if (!tournamentId) {
+        toast({ title: "Erreur", description: "ID du tournoi manquant.", variant: "destructive"});
+        return;
     }
-
-    // Special cases for small numbers
-    if (totalPlayers === 3) return [3];
-    if (totalPlayers === 4) return [4];
-    if (totalPlayers === 5) return [5];
-    if (totalPlayers === 6) return [3, 3];
-    if (totalPlayers === 7) return [4, 3];
-    if (totalPlayers === 8) return [4, 4];
-    if (totalPlayers === 9) return [3, 3, 3];
-    if (totalPlayers === 10) return [5, 5];
-    if (totalPlayers === 11) return [4, 4, 3];
-    if (totalPlayers === 12) return [4, 4, 4];
-    if (totalPlayers === 13) return [5, 4, 4];
-    if (totalPlayers === 14) return [5, 5, 4];
-    if (totalPlayers === 15) return [5, 5, 5];
-
-    // General algorithm for larger numbers
-    const groupsOf4 = Math.floor(totalPlayers / 4);
-    const remainder = totalPlayers % 4;
-
-    if (remainder === 0) {
-      // Perfect division by 4
-      return Array(groupsOf4).fill(4);
-    } else if (remainder === 1) {
-      // 4n+1: prefer (n-1) groups of 4 + 1 group of 5
-      if (groupsOf4 >= 1) {
-        return [...Array(groupsOf4 - 1).fill(4), 5];
-      } else {
-        return [5];
-      }
-    } else if (remainder === 2) {
-      // 4n+2: prefer 2 groups of 5 if n>=2, else (n-1) groups of 4 + 2 groups of 3
-      if (groupsOf4 >= 2) {
-        // For 10+: prefer groups of 5
-        if (totalPlayers >= 10 && groupsOf4 >= 2) {
-          return [...Array(groupsOf4 - 2).fill(4), 5, 5];
-        } else {
-          return [...Array(groupsOf4 - 1).fill(4), 3, 3];
-        }
-      } else {
-        return [3, 3];
-      }
-    } else if (remainder === 3) {
-      // 4n+3: n groups of 4 + 1 group of 3
-      return [...Array(groupsOf4).fill(4), 3];
+    setIsDrawing(true);
+    try {
+      const updatedTournament = await drawGroups(tournamentId);
+      onGroupsDrawn(updatedTournament); // Met à jour l'état parent
+       toast({ title: 'Tirage effectué', description: `${updatedTournament.groups.length} poule(s) créée(s) !`});
+    } catch (error) {
+      toast({ title: 'Erreur API', description: "Impossible de tirer les groupes.", variant: 'destructive' });
+      console.error("Failed to draw groups:", error);
+    } finally {
+      setIsDrawing(false);
     }
-
-    return [4];
   };
 
-  const generateGroups = () => {
-    const shuffled = [...players].sort(() => Math.random() - 0.5);
-    const groupSizes = calculateOptimalGroupDistribution(shuffled.length);
-    const newGroups = [];
-    
-    let playerIndex = 0;
-    for (let i = 0; i < groupSizes.length; i++) {
-      const groupSize = groupSizes[i];
-      const groupPlayers = shuffled.slice(playerIndex, playerIndex + groupSize).map((name) => ({
-        name,
-        played: 0,
-        won: 0,
-        drawn: 0,
-        lost: 0,
-        goalsFor: 0,
-        goalsAgainst: 0,
-        goalDiff: 0,
-        points: 0,
-      }));
-
-      const matches = [];
-      for (let j = 0; j < groupPlayers.length; j++) {
-        for (let k = j + 1; k < groupPlayers.length; k++) {
-          matches.push({
-            player1: groupPlayers[j].name,
-            player2: groupPlayers[k].name,
-            score1: null,
-            score2: null,
-            played: false,
-          });
-        }
-      }
-
-      newGroups.push({
-        name: String.fromCharCode(65 + i),
-        players: groupPlayers,
-        matches,
-      });
-      
-      playerIndex += groupSize;
-    }
-
-    setGeneratedGroups(newGroups);
-    setGroups(newGroups);
-    
-    const groupInfo = groupSizes.map((size, idx) => `Poule ${String.fromCharCode(65 + idx)}: ${size} joueurs`).join(', ');
-    toast({
-      title: 'Tirage effectué',
-      description: `${newGroups.length} poule(s) créée(s) avec succès ! (${groupInfo})`,
-    });
-  };
-
-  const handleMatchClick = (groupIndex, matchIndex) => {
-    setSelectedMatch({ groupIndex, matchIndex });
-    const match = generatedGroups[groupIndex].matches[matchIndex];
+  const handleMatchClick = (groupIndex, match) => {
+    // Permet de modifier même si déjà joué
+    setSelectedMatch({ groupIndex, matchId: match.id });
     setScore1(match.score1 !== null ? match.score1.toString() : '');
     setScore2(match.score2 !== null ? match.score2.toString() : '');
     setIsDialogOpen(true);
   };
 
-  const handleScoreSubmit = () => {
-    if (score1 === '' || score2 === '') {
-      toast({
-        title: 'Erreur',
-        description: 'Veuillez entrer les deux scores.',
-        variant: 'destructive',
-      });
-      return;
-    }
+  const handleScoreSubmit = async () => {
+     if (score1 === '' || score2 === '') {
+       toast({ title: 'Erreur', description: 'Veuillez entrer les deux scores.', variant: 'destructive' });
+       return;
+     }
+     const s1 = parseInt(score1);
+     const s2 = parseInt(score2);
+     if (isNaN(s1) || isNaN(s2) || s1 < 0 || s2 < 0) {
+       toast({ title: 'Erreur', description: 'Scores invalides.', variant: 'destructive' });
+       return;
+     }
 
-    const s1 = parseInt(score1);
-    const s2 = parseInt(score2);
+     if (!selectedMatch) return;
 
-    if (s1 < 0 || s2 < 0) {
-      toast({
-        title: 'Erreur',
-        description: 'Les scores ne peuvent pas être négatifs.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    const { groupIndex, matchIndex } = selectedMatch;
-    const newGroups = [...generatedGroups];
-    const group = newGroups[groupIndex];
-    const match = group.matches[matchIndex];
-
-    const wasPlayed = match.played;
-    const oldScore1 = match.score1;
-    const oldScore2 = match.score2;
-
-    match.score1 = s1;
-    match.score2 = s2;
-    match.played = true;
-
-    const player1 = group.players.find((p) => p.name === match.player1);
-    const player2 = group.players.find((p) => p.name === match.player2);
-
-    if (wasPlayed) {
-      player1.played -= 1;
-      player2.played -= 1;
-      player1.goalsFor -= oldScore1;
-      player1.goalsAgainst -= oldScore2;
-      player2.goalsFor -= oldScore2;
-      player2.goalsAgainst -= oldScore1;
-
-      if (oldScore1 > oldScore2) {
-        player1.won -= 1;
-        player1.points -= 3;
-        player2.lost -= 1;
-      } else if (oldScore1 < oldScore2) {
-        player2.won -= 1;
-        player2.points -= 3;
-        player1.lost -= 1;
-      } else {
-        player1.drawn -= 1;
-        player2.drawn -= 1;
-        player1.points -= 1;
-        player2.points -= 1;
-      }
-    }
-
-    player1.played += 1;
-    player2.played += 1;
-    player1.goalsFor += s1;
-    player1.goalsAgainst += s2;
-    player2.goalsFor += s2;
-    player2.goalsAgainst += s1;
-
-    if (s1 > s2) {
-      player1.won += 1;
-      player1.points += 3;
-      player2.lost += 1;
-    } else if (s1 < s2) {
-      player2.won += 1;
-      player2.points += 3;
-      player1.lost += 1;
-    } else {
-      player1.drawn += 1;
-      player2.drawn += 1;
-      player1.points += 1;
-      player2.points += 1;
-    }
-
-    player1.goalDiff = player1.goalsFor - player1.goalsAgainst;
-    player2.goalDiff = player2.goalsFor - player2.goalsAgainst;
-
-    group.players.sort((a, b) => {
-      if (b.points !== a.points) return b.points - a.points;
-      if (b.goalDiff !== a.goalDiff) return b.goalDiff - a.goalDiff;
-      return b.goalsFor - a.goalsFor;
-    });
-
-    setGeneratedGroups(newGroups);
-    setGroups(newGroups);
-    setIsDialogOpen(false);
-    setScore1('');
-    setScore2('');
-    setSelectedMatch(null);
-
-    toast({
-      title: 'Score enregistré',
-      description: `${match.player1} ${s1} - ${s2} ${match.player2}`,
-    });
+     setIsSavingScore(true);
+     try {
+       const updatedTournament = await updateScore(tournamentId, selectedMatch.matchId, s1, s2);
+       onScoreUpdate(updatedTournament); // Met à jour l'état parent
+       setIsDialogOpen(false);
+       setScore1('');
+       setScore2('');
+       setSelectedMatch(null);
+       // Trouver les noms pour le toast
+        const group = updatedTournament.groups[selectedMatch.groupIndex];
+        const match = group.matches.find(m => m.id === selectedMatch.matchId);
+        toast({ title: 'Score enregistré', description: `${match.player1} ${s1} - ${s2} ${match.player2}`});
+     } catch (error) {
+         toast({ title: 'Erreur API', description: "Impossible d'enregistrer le score.", variant: 'destructive' });
+         console.error("Failed to update score:", error);
+     } finally {
+        setIsSavingScore(false);
+     }
   };
 
   const allMatchesPlayed = generatedGroups.every((group) =>
@@ -245,161 +86,169 @@ const Step2GroupStage = ({ players, groups, setGroups, onComplete }) => {
   );
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8">
+     <div className="max-w-7xl mx-auto space-y-8">
       <div className="text-center">
         <h2 className="text-3xl font-bold text-white mb-4">Phase de Poules</h2>
         {generatedGroups.length === 0 && (
           <Button
-            onClick={generateGroups}
+            onClick={handleDrawGroups}
+            disabled={isDrawing}
             className="py-6 px-8 text-lg font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white transition-all duration-300 shadow-lg shadow-cyan-500/30"
           >
-            <Shuffle className="mr-2 w-6 h-6" />
-            Lancer le tirage au sort des poules
+            {isDrawing ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : <Shuffle className="mr-2 w-6 h-6" />}
+            {isDrawing ? "Tirage en cours..." : "Lancer le tirage au sort des poules"}
           </Button>
         )}
       </div>
 
-      {generatedGroups.length > 0 && (
-        <>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {generatedGroups.map((group, groupIndex) => (
-              <div
-                key={groupIndex}
-                className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 shadow-2xl border border-gray-700"
-              >
-                <h3 className="text-2xl font-bold text-cyan-400 mb-4">Poule {group.name}</h3>
+       {generatedGroups.length > 0 && (
+         <>
+           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+             {generatedGroups.map((group, groupIndex) => (
+               <div
+                 key={groupIndex}
+                 className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 shadow-2xl border border-gray-700"
+               >
+                 <h3 className="text-2xl font-bold text-cyan-400 mb-4">Poule {group.name}</h3>
 
-                <div className="overflow-x-auto mb-6">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-700">
-                        <th className="text-left py-2 px-2 text-gray-400">Joueur</th>
-                        <th className="text-center py-2 px-1 text-gray-400">J</th>
-                        <th className="text-center py-2 px-1 text-gray-400">G</th>
-                        <th className="text-center py-2 px-1 text-gray-400">N</th>
-                        <th className="text-center py-2 px-1 text-gray-400">P</th>
-                        <th className="text-center py-2 px-1 text-gray-400">BP</th>
-                        <th className="text-center py-2 px-1 text-gray-400">BC</th>
-                        <th className="text-center py-2 px-1 text-gray-400">Diff</th>
-                        <th className="text-center py-2 px-1 text-gray-400 font-bold">Pts</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {group.players.map((player, playerIndex) => (
-                        <tr
-                          key={playerIndex}
-                          className="border-b border-gray-800 hover:bg-gray-800/50 transition-colors"
-                        >
-                          <td className="py-2 px-2 text-white font-medium">{player.name}</td>
-                          <td className="text-center py-2 px-1 text-gray-300">{player.played}</td>
-                          <td className="text-center py-2 px-1 text-green-400">{player.won}</td>
-                          <td className="text-center py-2 px-1 text-yellow-400">{player.drawn}</td>
-                          <td className="text-center py-2 px-1 text-red-400">{player.lost}</td>
-                          <td className="text-center py-2 px-1 text-gray-300">{player.goalsFor}</td>
-                          <td className="text-center py-2 px-1 text-gray-300">{player.goalsAgainst}</td>
-                          <td className="text-center py-2 px-1 text-gray-300">{player.goalDiff}</td>
-                          <td className="text-center py-2 px-1 text-cyan-400 font-bold">{player.points}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                 <div className="overflow-x-auto mb-6">
+                   <table className="w-full text-sm">
+                     <thead>
+                       <tr className="border-b border-gray-700">
+                         <th className="text-left py-2 px-2 text-gray-400">Joueur</th>
+                         <th className="text-center py-2 px-1 text-gray-400">J</th>
+                         <th className="text-center py-2 px-1 text-gray-400">G</th>
+                         <th className="text-center py-2 px-1 text-gray-400">N</th>
+                         <th className="text-center py-2 px-1 text-gray-400">P</th>
+                         <th className="text-center py-2 px-1 text-gray-400">BP</th>
+                         <th className="text-center py-2 px-1 text-gray-400">BC</th>
+                         <th className="text-center py-2 px-1 text-gray-400">Diff</th>
+                         <th className="text-center py-2 px-1 text-gray-400 font-bold">Pts</th>
+                       </tr>
+                     </thead>
+                     <tbody>
+                       {group.players.map((player, playerIndex) => (
+                         <tr
+                           key={playerIndex}
+                           className={`border-b border-gray-800 hover:bg-gray-800/50 transition-colors ${player.groupPosition <= 2 ? 'bg-green-900/10' : ''}`}
+                         >
+                           <td className="py-2 px-2 text-white font-medium">{player.name}</td>
+                           <td className="text-center py-2 px-1 text-gray-300">{player.played}</td>
+                           <td className="text-center py-2 px-1 text-green-400">{player.won}</td>
+                           <td className="text-center py-2 px-1 text-yellow-400">{player.drawn}</td>
+                           <td className="text-center py-2 px-1 text-red-400">{player.lost}</td>
+                           <td className="text-center py-2 px-1 text-gray-300">{player.goalsFor}</td>
+                           <td className="text-center py-2 px-1 text-gray-300">{player.goalsAgainst}</td>
+                           <td className="text-center py-2 px-1 text-gray-300">{player.goalDiff > 0 ? '+' : ''}{player.goalDiff}</td>
+                           <td className="text-center py-2 px-1 text-cyan-400 font-bold">{player.points}</td>
+                         </tr>
+                       ))}
+                     </tbody>
+                   </table>
+                 </div>
 
-                <div className="space-y-2">
-                  <h4 className="text-sm font-semibold text-gray-400 mb-2">Matchs</h4>
-                  {group.matches.map((match, matchIndex) => (
-                    <button
-                      key={matchIndex}
-                      onClick={() => handleMatchClick(groupIndex, matchIndex)}
-                      className="w-full bg-gray-800 hover:bg-gray-700 rounded-lg p-3 transition-all duration-200 border border-gray-700 hover:border-cyan-500 group"
-                    >
-                      <div className="flex justify-between items-center">
-                        <span className="text-white font-medium">{match.player1}</span>
-                        <div className="flex items-center gap-2">
-                          {match.played ? (
-                            <span className="text-cyan-400 font-bold">
-                              {match.score1} - {match.score2}
-                            </span>
-                          ) : (
-                            <span className="text-gray-500">vs</span>
-                          )}
-                          <Edit className="w-4 h-4 text-gray-500 group-hover:text-cyan-400 transition-colors" />
-                        </div>
-                        <span className="text-white font-medium">{match.player2}</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
+                 <div className="space-y-2">
+                   <h4 className="text-sm font-semibold text-gray-400 mb-2">Matchs</h4>
+                   {group.matches.map((match, matchIndex) => (
+                     <button
+                       key={match.id || matchIndex} // Utilise l'ID du match s'il existe
+                       onClick={() => handleMatchClick(groupIndex, match)}
+                       className="w-full bg-gray-800 hover:bg-gray-700 rounded-lg p-3 transition-all duration-200 border border-gray-700 hover:border-cyan-500 group"
+                     >
+                       <div className="flex justify-between items-center">
+                         <span className="text-white font-medium">{match.player1}</span>
+                         <div className="flex items-center gap-2">
+                           {match.played ? (
+                             <span className="text-cyan-400 font-bold">
+                               {match.score1} - {match.score2}
+                             </span>
+                           ) : (
+                             <span className="text-gray-500">vs</span>
+                           )}
+                           <Edit className="w-4 h-4 text-gray-500 group-hover:text-cyan-400 transition-colors" />
+                         </div>
+                         <span className="text-white font-medium">{match.player2}</span>
+                       </div>
+                     </button>
+                   ))}
+                 </div>
+               </div>
+             ))}
+           </div>
 
-          {allMatchesPlayed && (
-            <div className="flex justify-center">
-              <Button
-                onClick={onComplete}
-                className="py-6 px-8 text-lg font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white transition-all duration-300 shadow-lg shadow-cyan-500/30"
-              >
-                Terminer la phase de poules et voir les qualifiés
-                <ArrowRight className="ml-2 w-5 h-5" />
-              </Button>
-            </div>
-          )}
-        </>
-      )}
+           {allMatchesPlayed && (
+             <div className="flex justify-center mt-8">
+               <Button
+                 onClick={onCompleteGroups} // Appelle la fonction passée par le parent
+                 className="py-6 px-8 text-lg font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white transition-all duration-300 shadow-lg shadow-cyan-500/30"
+               >
+                 Terminer la phase de poules et voir les qualifiés
+                 <ArrowRight className="ml-2 w-5 h-5" />
+               </Button>
+             </div>
+           )}
+         </>
+       )}
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="bg-gray-900 border-gray-700">
           <DialogHeader>
             <DialogTitle className="text-2xl text-white">
-              {selectedMatch && generatedGroups[selectedMatch.groupIndex]?.matches[selectedMatch.matchIndex] && (
+              {selectedMatch && generatedGroups[selectedMatch.groupIndex]?.matches.find(m => m.id === selectedMatch.matchId) && (
                 <>
-                  {generatedGroups[selectedMatch.groupIndex].matches[selectedMatch.matchIndex].player1}
+                  {generatedGroups[selectedMatch.groupIndex].matches.find(m => m.id === selectedMatch.matchId).player1}
                   <span className="text-cyan-400 mx-2">vs</span>
-                  {generatedGroups[selectedMatch.groupIndex].matches[selectedMatch.matchIndex].player2}
+                  {generatedGroups[selectedMatch.groupIndex].matches.find(m => m.id === selectedMatch.matchId).player2}
                 </>
               )}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-6 mt-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label className="text-gray-300 mb-2 block">
-                  {selectedMatch && generatedGroups[selectedMatch.groupIndex]?.matches[selectedMatch.matchIndex]?.player1}
-                </Label>
-                <Input
-                  type="number"
-                  min="0"
-                  value={score1}
-                  onChange={(e) => setScore1(e.target.value)}
-                  placeholder="Score"
-                  className="text-2xl text-center bg-gray-800 border-gray-600 text-white"
-                />
-              </div>
-              <div>
-                <Label className="text-gray-300 mb-2 block">
-                  {selectedMatch && generatedGroups[selectedMatch.groupIndex]?.matches[selectedMatch.matchIndex]?.player2}
-                </Label>
-                <Input
-                  type="number"
-                  min="0"
-                  value={score2}
-                  onChange={(e) => setScore2(e.target.value)}
-                  placeholder="Score"
-                  className="text-2xl text-center bg-gray-800 border-gray-600 text-white"
-                />
-              </div>
-            </div>
-            <Button
-              onClick={handleScoreSubmit}
-              className="w-full py-4 text-lg font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white"
-            >
-              Enregistrer le score
-            </Button>
+             <div className="grid grid-cols-2 gap-4">
+               <div>
+                 <Label className="text-gray-300 mb-2 block">
+                   {selectedMatch && generatedGroups[selectedMatch.groupIndex]?.matches.find(m => m.id === selectedMatch.matchId)?.player1}
+                 </Label>
+                 <Input
+                   type="number"
+                   min="0"
+                   value={score1}
+                   onChange={(e) => setScore1(e.target.value)}
+                   placeholder="Score"
+                   className="text-2xl text-center bg-gray-800 border-gray-600 text-white"
+                   disabled={isSavingScore}
+                 />
+               </div>
+               <div>
+                 <Label className="text-gray-300 mb-2 block">
+                    {selectedMatch && generatedGroups[selectedMatch.groupIndex]?.matches.find(m => m.id === selectedMatch.matchId)?.player2}
+                 </Label>
+                 <Input
+                   type="number"
+                   min="0"
+                   value={score2}
+                   onChange={(e) => setScore2(e.target.value)}
+                   placeholder="Score"
+                   className="text-2xl text-center bg-gray-800 border-gray-600 text-white"
+                    disabled={isSavingScore}
+                 />
+               </div>
+             </div>
+             <DialogFooter> {/* Ajout du Footer pour aligner les boutons */}
+                <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSavingScore}>Annuler</Button>
+                <Button
+                    onClick={handleScoreSubmit}
+                    disabled={isSavingScore || score1 === '' || score2 === ''}
+                    className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white"
+                >
+                    {isSavingScore ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    {isSavingScore ? "Enregistrement..." : "Enregistrer le score"}
+                </Button>
+             </DialogFooter>
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+     </div>
   );
 };
 
