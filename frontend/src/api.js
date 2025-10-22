@@ -2,7 +2,8 @@ import axios from 'axios';
 
 // Récupère l'URL de base de l'API depuis les variables d'environnement
 // VITE_API_URL est défini dans les paramètres de Render pour votre Static Site
-const API_BASE_URL = process.env.REACT_APP_API_URL || import.meta.env.VITE_API_URL || 'http://localhost:10000'; // Fallback pour dev local si nécessaire
+// La seule version correcte pour votre projet Create React App
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:10000'; // Fallback pour dev local si nécessaire
 
 console.log("Using API Base URL:", API_BASE_URL); // Pour vérifier que l'URL est correcte
 
