@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useToast } from '../hooks/use-toast';
-import { drawGroups, updateScore } from '../api'; // Import API calls
+import { drawGroups, updateScore, completeGroupStage } from '../api'; // Import API calls
 
 const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScoreUpdate, onCompleteGroups }) => {
   const [generatedGroups, setGeneratedGroups] = useState(groups || []);
@@ -15,6 +15,7 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDrawing, setIsDrawing] = useState(false); // Pour le bouton Tirage
   const [isSavingScore, setIsSavingScore] = useState(false); // Pour le bouton Valider score
+  const [isCompleting, setIsCompleting] = useState(false); // Pour le bouton Terminer
   const { toast } = useToast();
 
   useEffect(() => {
@@ -79,6 +80,26 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
      } finally {
         setIsSavingScore(false);
      }
+  };
+
+  const handleCompleteStageClick = async () => {
+    setIsCompleting(true);
+    try {
+      // 1. Appelle l'API
+      const updatedTournament = await completeGroupStage(tournamentId);
+      
+      // 2. Prévient le parent AVEC les nouvelles données
+      onCompleteGroups(updatedTournament); 
+      
+      toast({ title: 'Phase de poules terminée !', description: 'Affichage des qualifiés.' });
+    } catch (error) {
+      // Affiche l'erreur du backend (ex: "matchs non joués")
+      const errorMsg = error.response?.data?.detail || "Impossible de passer à la suite.";
+      toast({ title: 'Erreur', description: errorMsg, variant: 'destructive' });
+      console.error("Failed to complete group stage:", error);
+    } finally {
+      setIsCompleting(false);
+    }
   };
 
   const allMatchesPlayed = generatedGroups.every((group) =>
@@ -178,13 +199,15 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
 
            {allMatchesPlayed && (
              <div className="flex justify-center mt-8">
-               <Button
-                 onClick={onCompleteGroups} // Appelle la fonction passée par le parent
-                 className="py-6 px-8 text-lg font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white transition-all duration-300 shadow-lg shadow-cyan-500/30"
-               >
-                 Terminer la phase de poules et voir les qualifiés
-                 <ArrowRight className="ml-2 w-5 h-5" />
-               </Button>
+              <Button
+  onClick={handleCompleteStageClick} // <-- MODIFIÉ
+  disabled={isCompleting} // <-- AJOUTÉ
+  className="py-6 px-8 text-lg font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white transition-all duration-300 shadow-lg shadow-cyan-500/30"
+>
+  {/* --- Lignes modifiées ci-dessous --- */}
+  {isCompleting ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : <ArrowRight className="ml-2 w-5 h-5" />}
+  {isCompleting ? "Validation..." : "Terminer la phase de poules et voir les qualifiés"}
+</Button>
              </div>
            )}
          </>
