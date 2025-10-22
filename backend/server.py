@@ -185,7 +185,7 @@ def create_groups_logic(players: List[str]) -> List[Group]:
                 matches.append(GroupMatch(player1=group_player_names[j], player2=group_player_names[k]))
 
         groups.append(Group(
-            name=String.fromCharCode(65 + i), # Equivalent JS: chr(65 + i) en Python
+            name=chr(65 + i), # Equivalent JS: chr(65 + i) en Python
             players=group_players_stats,
             matches=matches
         ))
