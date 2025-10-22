@@ -555,11 +555,11 @@ async def get_status_checks():
 app.include_router(api_router)
 
 # Configuration CORS (Très important pour que le frontend puisse appeler l'API)
-origins = os.environ.get('CORS_ORIGINS', '*')
-if origins == '*':
-    origins = ["*"] # FastAPI attend une liste
-else:
-    origins = origins.split(',')
+# Lignes à ajouter (remplacent les lignes 541-546)
+origins = [
+    "https://tournoi-fc26-1.onrender.com",  # <--- L'URL exacte de VOTRE FRONTEND
+    "http://localhost:3000",             # Pour vos tests en local
+]
 
 app.add_middleware(
     CORSMiddleware,
