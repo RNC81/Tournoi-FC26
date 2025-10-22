@@ -248,23 +248,44 @@ def update_group_standings_logic(group: Group) -> List[PlayerStats]:
 
 
 def determine_qualifiers_logic(groups: List[Group], total_players: int) -> List[str]:
-    targetQualified = 4 if total_players <= 8 else (8 if total_players <= 16 else 16)
+    # --- LIGNE CORRIGÉE ---
+    # Choisir la taille du tableau final (puissance de 2) la plus proche INFÉRIEURE ou égale
+    # adaptée au nombre de joueurs. Pour 17, on veut 8 qualifiés (quarts).
+    if total_players <= 8: # Moins de 8 joueurs -> Demi-finales (4)
+         targetQualified = 4
+    elif total_players <= 16: # Entre 9 et 16 joueurs -> Quarts (8)
+         targetQualified = 8
+    else: # 17 joueurs et plus (jusqu'à 32) -> Huitièmes (16) - MAIS pour 17, 8 est mieux.
+         # Décidons : Si on a assez de joueurs pour remplir un tableau de 16 (ex: >24?), on prend 16.
+         # Sinon, on reste à 8. Pour 17, on reste à 8.
+         # On pourrait affiner, mais restons simple : pour 17-24 joueurs, on prend 8. Pour 25+, on prend 16.
+         targetQualified = 16 if total_players >= 24 else 8 # <--- CORRECTION DÉFINITIVE
+    # --- FIN DE LA CORRECTION ---
+
     qualified = []
-    third_placed = []
+    third_placed = [] # Stocke les objets PlayerStats des 3èmes
 
+    # (Le reste de la fonction ne change pas)
     for group in groups:
-        sorted_players = update_group_standings_logic(group) # Assure que les stats sont à jour et triées
-        group.players = sorted_players # Mettre à jour le groupe avec les stats triées
-        qualified.extend(p.name for i, p in enumerate(sorted_players) if i < 2) # Prend les 2 premiers
-        if len(sorted_players) > 2:
-            third_placed.append(sorted_players[2]) # Garde le 3ème
+        # S'assurer que les stats sont à jour et triées DANS chaque groupe
+        # La fonction update_group_standings_logic retourne les joueurs triés
+        sorted_players_in_group = update_group_standings_logic(group)
+        group.players = sorted_players_in_group # Met à jour l'objet groupe avec les joueurs triés et leur position
 
+        qualified.extend(p.name for i, p in enumerate(sorted_players_in_group) if i < 2) # Prend les 2 premiers
+        if len(sorted_players_in_group) > 2:
+            third_placed.append(sorted_players_in_group[2]) # Garde le 3ème (objet PlayerStats complet)
+
+    # Calculer combien de meilleurs troisièmes il faut
     needed = targetQualified - len(qualified)
+
     if needed > 0 and third_placed:
+        # Trier les troisièmes sur la base de leurs stats
         third_placed.sort(key=lambda p: (p.points, p.goalDiff, p.goalsFor), reverse=True)
+        # Ajouter les 'needed' meilleurs troisièmes à la liste des qualifiés
         qualified.extend(p.name for p in third_placed[:needed])
 
-    # Assurer qu'on ne dépasse pas la cible (si tous les groupes ont moins de 2 joueurs...)
+    # S'assurer qu'on ne dépasse pas la cible (sécurité)
     return qualified[:targetQualified]
 
 
