@@ -30,6 +30,7 @@ const TournamentManager = () => {
   const [eliminatedPlayers, setEliminatedPlayers] = useState([]); // Liste des objets joueurs éliminés
   const [knockoutMatches, setKnockoutMatches] = useState([]);
   const [winner, setWinner] = useState(null);
+  const [thirdPlace, setThirdPlace] = useState(null); // Ajout état thirdPlace
   const [isLoading, setIsLoading] = useState(true); // État de chargement initial
   const { toast } = useToast();
 
@@ -76,7 +77,7 @@ const TournamentManager = () => {
 
     setKnockoutMatches(data.knockoutMatches || []);
     setWinner(data.winner || null);
-
+    setThirdPlace(data.thirdPlace || null); // Met à jour thirdPlace si présent
     // Sauvegarde l'ID dans localStorage
     if (data._id || data.id) {
         localStorage.setItem(TOURNAMENT_ID_LS_KEY, data._id || data.id);
@@ -204,7 +205,8 @@ const TournamentManager = () => {
                         onScoreUpdate={handleKnockoutUpdated}
                         winner={winner}
                         onFinish={handleTournamentFinished} // Pour mettre à jour l'état final
-                        groups={groups} // Peut-être utile pour référence
+                        groups={groups}
+                        thirdPlace={thirdPlace} // Peut-être utile pour référence
                     />;
         }
 

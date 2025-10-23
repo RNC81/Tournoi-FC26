@@ -7,13 +7,14 @@ import { Label } from './ui/label';
 import { useToast } from '../hooks/use-toast';
 import { updateScore } from '../api'; // Import API call
 
-const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, onFinish, groups }) => {
+const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, onFinish, groups, thirdPlace }) => {
   const [matches, setMatches] = useState(knockoutMatches || []);
   const [selectedMatch, setSelectedMatch] = useState(null); // Juste l'objet match
   const [score1, setScore1] = useState('');
   const [score2, setScore2] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [champion, setChampion] = useState(winner);
+  const [thirdPlaceWinner, setThirdPlaceWinner] = useState(thirdPlace);
   const [isSavingScore, setIsSavingScore] = useState(false);
   const { toast } = useToast();
 
@@ -28,6 +29,11 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
       setChampion(winner);
   }, [winner]); // Dépendance: winner
 
+  // AJOUTER ce useEffect pour thirdPlaceWinner
+  useEffect(() => {
+      setThirdPlaceWinner(thirdPlace);
+  }, [thirdPlace]);
+  // FIN AJOUT
 
   const handleMatchClick = (match) => {
     if (!match.player1 || !match.player2) {
@@ -114,51 +120,58 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
          </div>
        )}
       
-      {champion && groups && groups.length > 0 && (
-        <div className="mt-12 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 shadow-xl border border-gray-700">
-          <h3 className="text-2xl font-bold text-center text-gray-300 mb-6">Classement Final (Phase de Poules)</h3>
-          <div className="max-h-[400px] overflow-y-auto space-y-2 pr-2">
-            {/* Calcul et tri du classement */}
-            {groups.flatMap(g => g.players) // Met tous les joueurs dans une seule liste
-              .sort((a, b) => { // Trie selon les critères standards
-                if (b.points !== a.points) return b.points - a.points;
-                if (b.goalDiff !== a.goalDiff) return b.goalDiff - a.goalDiff;
-                if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
-                return a.name.localeCompare(b.name); // Ordre alphabétique en cas d'égalité parfaite
-              })
-              .map((player, index) => (
-                <div key={player.name} className={`flex items-center justify-between p-3 rounded-lg border ${
-                    index === 0 ? 'bg-yellow-900/30 border-yellow-600/50' : // Met en surbrillance le 1er (basé sur les poules)
-                    index < 8 ? 'bg-gray-800 border-gray-700' : // Style normal pour les suivants
-                    'bg-gray-800/50 border-gray-700/50 opacity-80' // Style un peu estompé pour les non-qualifiés
-                }`}>
-                  <div className="flex items-center space-x-3">
-                    <span className={`font-bold text-lg ${index === 0 ? 'text-yellow-400' : index < 8 ? 'text-gray-200' : 'text-gray-400'}`}>
-                      #{index + 1}
-                    </span>
-                    <span className={`font-medium ${index === 0 ? 'text-white' : 'text-gray-100'}`}>{player.name}</span>
-                  </div>
-                  <div className="text-right text-sm">
-                    <span className={`font-semibold ${index === 0 ? 'text-yellow-300' : 'text-cyan-400'}`}>{player.points} pts</span>
-                    <span className="ml-3 text-gray-400">Diff: {player.goalDiff > 0 ? '+' : ''}{player.goalDiff} ({player.goalsFor} BP)</span>
-                  </div>
-                </div>
-              ))
-            }
-          </div>
-        </div>
-      )}
+      {/* --- AJOUT : Affichage du Podium --- */}
+       {champion && thirdPlaceWinner && matches && matches.length > 0 && (
+         <div className="mt-12 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-8 shadow-xl border border-gray-700">
+           <h3 className="text-3xl font-bold text-center text-gray-200 mb-8">Podium Final</h3>
+           <div className="flex flex-col md:flex-row justify-around items-center gap-8">
+             {(() => {
+               // Trouve le match final
+               const finalMatch = matches.find(m => m.round === totalRounds - 1 && !m.id.startsWith("match_third_place_"));
+               const secondPlace = finalMatch 
+                 ? (finalMatch.player1 === champion ? finalMatch.player2 : finalMatch.player1) 
+                 : 'Non déterminé'; // Fallback
+
+               return (
+                 <>
+                   {/* 2ème Place */}
+                   <div className="text-center order-2 md:order-1">
+                     <p className="text-6xl mb-2">🥈</p>
+                     <p className="text-2xl font-semibold text-gray-300">2ème Place</p>
+                     <p className="text-3xl font-bold text-gray-100 mt-1">{secondPlace}</p>
+                   </div>
+                   {/* 1ère Place */}
+                   <div className="text-center order-1 md:order-2 scale-110"> {/* Mis en avant */}
+                     <p className="text-7xl mb-2">🥇</p>
+                     <p className="text-3xl font-bold text-yellow-400">CHAMPION</p>
+                     <p className="text-4xl font-extrabold text-white mt-1">{champion}</p>
+                   </div>
+                   {/* 3ème Place */}
+                   <div className="text-center order-3 md:order-3">
+                     <p className="text-6xl mb-2">🥉</p>
+                     <p className="text-2xl font-semibold text-orange-400">3ème Place</p>
+                     <p className="text-3xl font-bold text-gray-100 mt-1">{thirdPlaceWinner}</p>
+                   </div>
+                 </>
+               );
+             })()}
+           </div>
+         </div>
+       )}
+       {/* --- FIN AJOUT --- */}
 
       {matches.length > 0 && !champion && (
         <div className="overflow-x-auto pb-4">
             <div className="flex gap-8 min-w-max px-4">
-              {roundsData.map((round, roundIndex) => (
+              {/* --- MODIFICATION : Boucle sur les rounds SAUF le dernier --- */}
+              {roundsData.slice(0, -1).map((round, roundIndex) => (
                 <div key={roundIndex} className="flex flex-col w-72 flex-shrink-0">
                   <h3 className="text-xl font-bold text-cyan-400 text-center mb-4 pb-2 border-b-2 border-cyan-700">
                     {round.name}
                   </h3>
                   <div className="space-y-4 flex-grow flex flex-col justify-around">
                     {round.matches.map((match) => (
+                      // Copie/Colle EXACTEMENT le code de la carte de match que tu avais ici avant
                       <div
                         key={match.id}
                         className={`bg-gradient-to-r from-gray-800/80 to-gray-900/60 rounded-xl p-3 shadow-lg border border-gray-700/60 transition-all duration-300 ${(match.player1 && match.player2 && !match.winner) ? 'hover:border-cyan-400/80 hover:shadow-cyan-500/20 cursor-pointer' : ''}`}
@@ -166,11 +179,11 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
                       >
                         <div className="space-y-2">
                           <div
-                          className={`flex justify-between items-center px-3 py-1.5 rounded-md transition-colors duration-200 ${ // py augmenté
-                            match.winner === match.player1
-                              ? 'bg-green-700/40 border border-green-500/70 text-white font-semibold' // Style gagnant renforcé
-                              : match.played ? 'bg-gray-800/40 text-gray-400 opacity-70' // Style perdant/joué
-                              : 'bg-gray-700/50 text-gray-100' // Style par défaut (non joué)
+                            className={`flex justify-between items-center px-3 py-1.5 rounded-md transition-colors duration-200 ${
+                              match.winner === match.player1
+                                ? 'bg-green-700/40 border border-green-500/70 text-white font-semibold'
+                                : match.played ? 'bg-gray-800/40 text-gray-400 opacity-70'
+                                : 'bg-gray-700/50 text-gray-100'
                             }`}
                           >
                             <span className="text-white font-medium truncate">{match.player1 || '...'}</span>
@@ -179,11 +192,11 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
                             )}
                           </div>
                           <div
-                          className={`flex justify-between items-center px-3 py-1.5 rounded-md transition-colors duration-200 ${ // py augmenté
-                            match.winner === match.player2
-                              ? 'bg-green-700/40 border border-green-500/70 text-white font-semibold' // Style gagnant renforcé
-                              : match.played ? 'bg-gray-800/40 text-gray-400 opacity-70' // Style perdant/joué
-                              : 'bg-gray-700/50 text-gray-100' // Style par défaut (non joué)
+                            className={`flex justify-between items-center px-3 py-1.5 rounded-md transition-colors duration-200 ${
+                              match.winner === match.player2
+                                ? 'bg-green-700/40 border border-green-500/70 text-white font-semibold'
+                                : match.played ? 'bg-gray-800/40 text-gray-400 opacity-70'
+                                : 'bg-gray-700/50 text-gray-100'
                             }`}
                           >
                             <span className="text-white font-medium truncate">{match.player2 || '...'}</span>
@@ -195,22 +208,150 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    className="w-full mt-2 border-gray-600 text-gray-300 hover:bg-gray-700 hover:border-cyan-500 text-xs py-1"
-                                     onClick={(e) => { e.stopPropagation(); handleMatchClick(match); }} // Empêche la propagation si dans un conteneur cliquable
+                                    className="w-full mt-1.5 border-gray-600 text-gray-300 hover:bg-gray-700 hover:border-cyan-500 text-xs py-0.5 h-6" // mt, py, h réduits
+                                     onClick={(e) => { e.stopPropagation(); handleMatchClick(match); }}
                                 >
                                     <Edit className="w-3 h-3 mr-1" />
-                                    Entrer Score
+                                    Score
                                 </Button>
                           )}
                         </div>
                       </div>
+                      // Fin de la copie de la carte de match
                     ))}
                   </div>
                 </div>
               ))}
-            </div>
-        </div>
-      )}
+              {/* --- FIN MODIFICATION : Fin de la boucle des rounds précédents --- */}
+
+
+              {/* --- AJOUT : Affichage spécifique pour le dernier round --- */}
+              {roundsData.length > 0 && (
+                <div className="flex flex-col w-72 flex-shrink-0">
+                  {/* Section Finale */}
+                  <h3 className="text-xl font-bold text-yellow-400 text-center mb-4 pb-2 border-b-2 border-yellow-700">
+                    Finale
+                  </h3>
+                  <div className="space-y-4 mb-8">
+                    {roundsData[roundsData.length - 1].matches
+                      .filter(m => !m.id.startsWith("match_third_place_")) // Prend seulement la finale
+                      .map((match) => (
+                        // Copie/Colle EXACTEMENT le code de la carte de match une nouvelle fois ici
+                        <div
+                            key={match.id}
+                            className={`bg-gradient-to-r from-gray-800/80 to-gray-900/60 rounded-xl p-3 shadow-lg border border-gray-700/60 transition-all duration-300 ${(match.player1 && match.player2 && !match.winner) ? 'hover:border-cyan-400/80 hover:shadow-cyan-500/20 cursor-pointer' : ''}`}
+                            onClick={() => (match.player1 && match.player2 && !match.winner) ? handleMatchClick(match) : null}
+                         >
+                            <div className="space-y-2">
+                              <div
+                                className={`flex justify-between items-center px-3 py-1.5 rounded-md transition-colors duration-200 ${
+                                  match.winner === match.player1
+                                    ? 'bg-green-700/40 border border-green-500/70 text-white font-semibold'
+                                    : match.played ? 'bg-gray-800/40 text-gray-400 opacity-70'
+                                    : 'bg-gray-700/50 text-gray-100'
+                                }`}
+                              >
+                                <span className="text-white font-medium truncate">{match.player1 || '...'}</span>
+                                {match.played && (
+                                  <span className="text-cyan-400 font-bold">{match.score1}</span>
+                                )}
+                              </div>
+                              <div
+                                className={`flex justify-between items-center px-3 py-1.5 rounded-md transition-colors duration-200 ${
+                                  match.winner === match.player2
+                                    ? 'bg-green-700/40 border border-green-500/70 text-white font-semibold'
+                                    : match.played ? 'bg-gray-800/40 text-gray-400 opacity-70'
+                                    : 'bg-gray-700/50 text-gray-100'
+                                }`}
+                              >
+                                <span className="text-white font-medium truncate">{match.player2 || '...'}</span>
+                                {match.played && (
+                                  <span className="text-cyan-400 font-bold">{match.score2}</span>
+                                )}
+                              </div>
+                              {match.player1 && match.player2 && !match.winner && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="w-full mt-1.5 border-gray-600 text-gray-300 hover:bg-gray-700 hover:border-cyan-500 text-xs py-0.5 h-6"
+                                         onClick={(e) => { e.stopPropagation(); handleMatchClick(match); }}
+                                    >
+                                        <Edit className="w-3 h-3 mr-1" />
+                                        Score
+                                    </Button>
+                              )}
+                            </div>
+                         </div>
+                        // Fin de la copie de la carte de match
+                    ))}
+                  </div>
+
+                  {/* Section Petite Finale */}
+                  {roundsData[roundsData.length - 1].matches.some(m => m.id.startsWith("match_third_place_")) && (
+                    <>
+                      <h3 className="text-xl font-bold text-orange-400 text-center mb-4 pb-2 border-b-2 border-orange-700">
+                        Match 3ème Place
+                      </h3>
+                      <div className="space-y-4">
+                        {roundsData[roundsData.length - 1].matches
+                          .filter(m => m.id.startsWith("match_third_place_")) // Prend seulement la petite finale
+                          .map((match) => (
+                            // Copie/Colle EXACTEMENT le code de la carte de match une dernière fois ici
+                            <div
+                                key={match.id}
+                                className={`bg-gradient-to-r from-gray-800/80 to-gray-900/60 rounded-xl p-3 shadow-lg border border-gray-700/60 transition-all duration-300 ${(match.player1 && match.player2 && !match.winner) ? 'hover:border-cyan-400/80 hover:shadow-cyan-500/20 cursor-pointer' : ''}`}
+                                onClick={() => (match.player1 && match.player2 && !match.winner) ? handleMatchClick(match) : null}
+                             >
+                                <div className="space-y-2">
+                                  <div
+                                    className={`flex justify-between items-center px-3 py-1.5 rounded-md transition-colors duration-200 ${
+                                      match.winner === match.player1
+                                        ? 'bg-green-700/40 border border-green-500/70 text-white font-semibold'
+                                        : match.played ? 'bg-gray-800/40 text-gray-400 opacity-70'
+                                        : 'bg-gray-700/50 text-gray-100'
+                                    }`}
+                                  >
+                                    <span className="text-white font-medium truncate">{match.player1 || '...'}</span>
+                                    {match.played && (
+                                      <span className="text-cyan-400 font-bold">{match.score1}</span>
+                                    )}
+                                  </div>
+                                  <div
+                                    className={`flex justify-between items-center px-3 py-1.5 rounded-md transition-colors duration-200 ${
+                                      match.winner === match.player2
+                                        ? 'bg-green-700/40 border border-green-500/70 text-white font-semibold'
+                                        : match.played ? 'bg-gray-800/40 text-gray-400 opacity-70'
+                                        : 'bg-gray-700/50 text-gray-100'
+                                    }`}
+                                  >
+                                    <span className="text-white font-medium truncate">{match.player2 || '...'}</span>
+                                    {match.played && (
+                                      <span className="text-cyan-400 font-bold">{match.score2}</span>
+                                    )}
+                                  </div>
+                                  {match.player1 && match.player2 && !match.winner && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="w-full mt-1.5 border-gray-600 text-gray-300 hover:bg-gray-700 hover:border-cyan-500 text-xs py-0.5 h-6"
+                                             onClick={(e) => { e.stopPropagation(); handleMatchClick(match); }}
+                                        >
+                                            <Edit className="w-3 h-3 mr-1" />
+                                            Score
+                                        </Button>
+                                  )}
+                                </div>
+                             </div>
+                            // Fin de la copie de la carte de match
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+              {/* --- FIN AJOUT --- */}
+
+      
 
        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
          <DialogContent className="bg-gray-900 border-gray-700">
