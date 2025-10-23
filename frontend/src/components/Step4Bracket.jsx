@@ -341,17 +341,16 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
                                         </Button>
                                   )}
                                 </div>
-                             </div>
+                            </div>
                             // Fin de la copie de la carte de match
                         ))}
                       </div>
                     </>
                   )}
                 </div>
-    </div>
               )}
               {/* --- FIN AJOUT --- */}
-
+</div>
       
 
        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
