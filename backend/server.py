@@ -463,85 +463,127 @@ async def update_match_score(tournament_id: str, match_id: str, scores: ScoreUpd
                 if match.get("played") and match.get("score1") == scores.score1 and match.get("score2") == scores.score2:
                      tournament["id"] = str(tournament["_id"])
                      return Tournament(**tournament)
-                if scores.score1 == scores.score2:
-                    raise HTTPException(status_code=400, detail="Match nul interdit en phase finale")
+                
+                # --- CORRECTION : Logique de nul déplacée ---
+                # On ne vérifie le nul que si c'est la finale ou 3e place
+                # (On doit calculer les rounds d'abord)
 
                 match["score1"] = scores.score1
                 match["score2"] = scores.score2
                 match["played"] = True
-                winner = match["player1"] if scores.score1 > scores.score2 else match["player2"]
+
+                # --- CORRECTION : Définir gagnant ET perdant ---
+                # Gérer le cas du nul AVANT de définir gagnant/perdant
+                
+                winner = None
+                loser = None
+
+                if scores.score1 > scores.score2:
+                    winner = match["player1"]
+                    loser = match["player2"]
+                elif scores.score2 > scores.score1:
+                    winner = match["player2"]
+                    loser = match["player1"]
+                else:
+                    # Le score est nul. On doit vérifier si c'est autorisé.
+                    # Calculer total_rounds pour savoir si c'est la finale/3e place
+                    qualified_players_list = tournament.get("qualifiedPlayers", [])
+                    if not isinstance(qualified_players_list, list): qualified_players_list = []
+                    num_qualified = len(qualified_players_list)
+                    total_rounds = 0
+                    if num_qualified > 0: total_rounds = math.ceil(math.log2(num_qualified))
+                    
+                    if total_rounds == 0: # Fallback si qualifiés non trouvés
+                         all_rounds = [m["round"] for m in tournament["knockoutMatches"] if not m["id"].startswith("match_third_place_")]
+                         if all_rounds: total_rounds = max(all_rounds) + 1
+
+                    final_round_index = total_rounds - 1
+                    is_final_or_third = match["id"].startswith("match_third_place_") or match["round"] == final_round_index
+
+                    if is_final_or_third:
+                         raise HTTPException(status_code=400, detail="Match nul interdit en phase finale (Finale / 3ème place)")
+                    else:
+                         # Si ce n'est NI la finale NI la 3e place, le nul est aussi interdit
+                         # (La logique de l'app frontale l'interdit partout, on suit)
+                         raise HTTPException(status_code=400, detail="Match nul interdit en phase finale")
+
+
                 match["winner"] = winner
                 match_found = True
 
-                # Avancer le gagnant au tour suivant
+                # --- NOUVELLE LOGIQUE D'AVANCEMENT ---
+
                 current_round = match["round"]
                 current_match_index = match["matchIndex"]
-                next_round_index = current_round + 1
-                next_match_index = current_match_index // 2
 
-                # Trouver le match suivant
-                next_match = next((m for m in tournament["knockoutMatches"]
-                                   if m["round"] == next_round_index and m["matchIndex"] == next_match_index), None)
+                # Recalculer total_rounds (basé sur le nombre de qualifiés)
+                qualified_players_list = tournament.get("qualifiedPlayers", [])
+                if not isinstance(qualified_players_list, list): qualified_players_list = []
+                
+                num_qualified = len(qualified_players_list)
+                total_rounds = 0
+                if num_qualified > 0:
+                     total_rounds = math.ceil(math.log2(num_qualified)) # ex: 8 joueurs -> log2(8) = 3 rounds (0, 1, 2)
+                
+                if total_rounds == 0:
+                     all_rounds = [m["round"] for m in tournament["knockoutMatches"] if not m["id"].startswith("match_third_place_")]
+                     if all_rounds:
+                         total_rounds = max(all_rounds) + 1 
 
-                if next_match:
-                    if current_match_index % 2 == 0: # Le gagnant va en position player1
-                        next_match["player1"] = winner
-                    else: # Le gagnant va en position player2
-                        next_match["player2"] = winner
+                semi_final_round_index = total_rounds - 2 # ex: 3 rounds (0,1,2) -> 3-2 = round 1.
+                final_round_index = total_rounds - 1    # ex: 3 rounds (0,1,2) -> 3-1 = round 2.
+
+                # 1. Si c'est la petite finale qui vient d'être jouée
+                if match["id"].startswith("match_third_place_"):
+                    tournament["thirdPlace"] = winner
+                    # Ne fait avancer personne d'autre
+
+                # 2. Si c'est une demi-finale (et qu'on a un tableau d'au moins 4)
+                elif current_round == semi_final_round_index and num_qualified >= 4:
+                    # Envoyer le PERDANT à la petite finale
+                    petite_finale_match = next((m for m in tournament["knockoutMatches"] if m["id"].startswith("match_third_place_")), None)
+                    if petite_finale_match:
+                        # Placer le perdant dans le premier slot libre
+                        if petite_finale_match.get("player1") is None:
+                            petite_finale_match["player1"] = loser
+                        elif petite_finale_match.get("player2") is None:
+                            petite_finale_match["player2"] = loser
+                    
+                    # Envoyer le GAGNANT à la finale (logique ci-dessous)
+                    next_round_index = current_round + 1 # -> final_round_index
+                    next_match_index = current_match_index // 2
+                    finale_match = next((m for m in tournament["knockoutMatches"]
+                                           if m["round"] == next_round_index and m["matchIndex"] == next_match_index), None)
+                    if finale_match:
+                        if current_match_index % 2 == 0:
+                            finale_match["player1"] = winner
+                        else:
+                            finale_match["player2"] = winner
+
+                # 3. Si c'est la finale qui vient d'être jouée
+                elif current_round == final_round_index:
+                    tournament["winner"] = winner
+                    tournament["currentStep"] = "finished"
+                    # Ne fait avancer personne d'autre
+
+                # 4. Tous les autres matchs (Quarts, 8èmes, etc.)
                 else:
-                    # C'était la finale, définir le gagnant du tournoi
-                     tournament["winner"] = winner
-                     tournament["currentStep"] = "finished"
-                break
+                    # Avancer le GAGNANT au tour suivant
+                    next_round_index = current_round + 1
+                    next_match_index = current_match_index // 2
+                    next_match = next((m for m in tournament["knockoutMatches"]
+                                       if m["round"] == next_round_index and m["matchIndex"] == next_match_index), None)
+                    if next_match:
+                        if current_match_index % 2 == 0:
+                            next_match["player1"] = winner
+                        else:
+                            next_match["player2"] = winner
+                
+                break # Sortir de la boucle 'for match in tournament["knockoutMatches"]'
+                # --- FIN DE LA NOUVELLE LOGIQUE ---
 
     if not match_found:
         raise HTTPException(status_code=404, detail=f"Match '{match_id}' non trouvé dans ce tournoi")
-
-    # --- MODIFICATIONS / AJOUTS CI-DESSOUS ---
-        current_round = match_to_update["round"]
-        current_match_index = match_to_update["matchIndex"]
-        num_players_start_knockout = len(tournament["knockoutMatches"]) - (1 if len(tournament["knockoutMatches"]) > 1 else 0) # Approximatif, mieux si stocké
-        total_rounds = math.ceil(math.log2(len(tournament.get("qualifiedPlayers", [])))) # Recalcule total_rounds
-        semi_final_round_index = total_rounds - 2
-        final_round_index = total_rounds - 1
-
-        # 1. Vérifier si c'est la petite finale qu'on vient de jouer
-        if match_id.startswith("match_third_place_"):
-            tournament["thirdPlace"] = winner # Met à jour le champ thirdPlace
-            # La petite finale ne fait avancer personne
-
-        # 2. Vérifier si c'était une demi-finale pour envoyer le perdant en petite finale
-        elif current_round == semi_final_round_index and num_players_start_knockout >= 4: # Si c'était une demi et qu'il y a une petite finale
-            petite_finale_match = next((m for m in tournament["knockoutMatches"] if m["id"].startswith("match_third_place_")), None)
-            if petite_finale_match:
-                # Place le perdant dans le premier slot libre de la petite finale
-                if petite_finale_match.get("player1") is None:
-                    petite_finale_match["player1"] = loser
-                elif petite_finale_match.get("player2") is None:
-                    petite_finale_match["player2"] = loser
-            # Le gagnant avance en finale (logique ci-dessous reste valable)
-
-        # 3. Logique existante pour avancer le gagnant (sauf si c'était la petite finale)
-        if not match_id.startswith("match_third_place_"):
-            next_round_index = current_round + 1
-            next_match_index = current_match_index // 2
-
-            # Trouver le match suivant (peut être la finale ou un match de tour supérieur)
-            next_match = next((m for m in tournament["knockoutMatches"]
-                               if m["round"] == next_round_index and m["matchIndex"] == next_match_index and not m["id"].startswith("match_third_place_")), None) # Exclut la petite finale ici
-
-            if next_match:
-                if current_match_index % 2 == 0: # Le gagnant va en position player1
-                    next_match["player1"] = winner
-                else: # Le gagnant va en position player2
-                    next_match["player2"] = winner
-            elif next_round_index == total_rounds: # Si on est au dernier round (la finale vient d'être jouée)
-                 tournament["winner"] = winner
-                 tournament["currentStep"] = "finished" # Marquer comme fini SEULEMENT après la finale
-            # Si next_match est None mais qu'on n'est pas au dernier round, il y a un souci (ne devrait pas arriver avec la structure générée)
-
-
-    # --- FIN DES MODIFICATIONS ---
 
     # Mettre à jour la date et sauvegarder tout le tournoi
     tournament["updatedAt"] = datetime.now(timezone.utc)
