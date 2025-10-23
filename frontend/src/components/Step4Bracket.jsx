@@ -217,7 +217,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
                           )}
                         </div>
                       </div>
-                      // Fin de la copie de la carte de match
+                      
                     ))}
                   </div>
                 </div>
@@ -234,9 +234,9 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
                   </h3>
                   <div className="space-y-4 mb-8">
                     {roundsData[roundsData.length - 1].matches
-                      .filter(m => !m.id.startsWith("match_third_place_")) // Prend seulement la finale
+                      .filter(m => !m.id.startsWith("match_third_place_")) 
                       .map((match) => (
-                        // Copie/Colle EXACTEMENT le code de la carte de match une nouvelle fois ici
+                        
                         <div
                             key={match.id}
                             className={`bg-gradient-to-r from-gray-800/80 to-gray-900/60 rounded-xl p-3 shadow-lg border border-gray-700/60 transition-all duration-300 ${(match.player1 && match.player2 && !match.winner) ? 'hover:border-cyan-400/80 hover:shadow-cyan-500/20 cursor-pointer' : ''}`}
@@ -282,7 +282,6 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
                               )}
                             </div>
                          </div>
-                        // Fin de la copie de la carte de match
                     ))}
                   </div>
 
@@ -294,9 +293,9 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
                       </h3>
                       <div className="space-y-4">
                         {roundsData[roundsData.length - 1].matches
-                          .filter(m => m.id.startsWith("match_third_place_")) // Prend seulement la petite finale
+                          .filter(m => m.id.startsWith("match_third_place_")) 
                           .map((match) => (
-                            // Copie/Colle EXACTEMENT le code de la carte de match une dernière fois ici
+                            
                             <div
                                 key={match.id}
                                 className={`bg-gradient-to-r from-gray-800/80 to-gray-900/60 rounded-xl p-3 shadow-lg border border-gray-700/60 transition-all duration-300 ${(match.player1 && match.player2 && !match.winner) ? 'hover:border-cyan-400/80 hover:shadow-cyan-500/20 cursor-pointer' : ''}`}
@@ -342,7 +341,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
                                   )}
                                 </div>
                             </div>
-                            // Fin de la copie de la carte de match
+                            
                         ))}
                       </div>
                     </>
