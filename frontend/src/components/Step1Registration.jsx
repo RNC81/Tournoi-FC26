@@ -51,11 +51,8 @@ const Step1Registration = ({ onComplete }) => {
     try {
       // Appel API pour créer le tournoi
       const tournamentData = await createTournament(filledNames);
-      toast({ title: 'Succès', description: `Tournoi créé avec ${filledNames.length} joueurs ! Préparation du tirage...` });
-
-      setTimeout(() => {
-        onComplete(tournamentData); // Passe les données complètes du tournoi créé
-    }, 1500);
+      toast({ title: 'Succès', description: `Tournoi créé avec ${filledNames.length} joueurs !` });
+        onComplete(tournamentData); // Passe les données complètes du tournoi créé;
     } catch (error) {
       toast({ title: 'Erreur API', description: "Impossible de créer le tournoi. Veuillez réessayer.", variant: 'destructive' });
       console.error("Failed to create tournament:", error);
