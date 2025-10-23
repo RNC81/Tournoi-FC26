@@ -17,6 +17,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from './ui/alert-dialog'; // <-- AJOUTE CET IMPORT COMPLET
+import { Button } from './ui/button'; // <-- AJOUTE CETTE LIGNE
 
 const TOURNAMENT_ID_LS_KEY = 'currentTournamentId';
 
