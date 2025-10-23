@@ -109,6 +109,7 @@ class Tournament(BaseModel):
     knockoutMatches: List[KnockoutMatch] = []
     qualifiedPlayers: List[str] = [] # Noms des joueurs qualifiés
     winner: Optional[str] = None
+    thirdPlace : Optional[str] = None
     currentStep: str = "config" # config, groups, qualified, knockout, finished
     createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -326,6 +327,15 @@ def generate_knockout_matches_logic(qualified_player_names: List[str]) -> List[K
             ))
         matches_in_round //= 2
 
+    if num_players >= 4:
+        final_round_index = total_rounds - 1
+        matches.append(KnockoutMatch(
+            id=f"match_third_place_{uuid.uuid4()}", # ID spécifique
+            round=final_round_index,  # Même round que la finale
+            matchIndex=1,             # Index différent de la finale (qui sera 0)
+            player1=None,             # Sera rempli plus tard
+            player2=None,             # Sera rempli plus tard
+        ))
     return matches
 
 # --- Routes API ---
@@ -486,6 +496,52 @@ async def update_match_score(tournament_id: str, match_id: str, scores: ScoreUpd
 
     if not match_found:
         raise HTTPException(status_code=404, detail=f"Match '{match_id}' non trouvé dans ce tournoi")
+
+    # --- MODIFICATIONS / AJOUTS CI-DESSOUS ---
+        current_round = match_to_update["round"]
+        current_match_index = match_to_update["matchIndex"]
+        num_players_start_knockout = len(tournament["knockoutMatches"]) - (1 if len(tournament["knockoutMatches"]) > 1 else 0) # Approximatif, mieux si stocké
+        total_rounds = math.ceil(math.log2(len(tournament.get("qualifiedPlayers", [])))) # Recalcule total_rounds
+        semi_final_round_index = total_rounds - 2
+        final_round_index = total_rounds - 1
+
+        # 1. Vérifier si c'est la petite finale qu'on vient de jouer
+        if match_id.startswith("match_third_place_"):
+            tournament["thirdPlace"] = winner # Met à jour le champ thirdPlace
+            # La petite finale ne fait avancer personne
+
+        # 2. Vérifier si c'était une demi-finale pour envoyer le perdant en petite finale
+        elif current_round == semi_final_round_index and num_players_start_knockout >= 4: # Si c'était une demi et qu'il y a une petite finale
+            petite_finale_match = next((m for m in tournament["knockoutMatches"] if m["id"].startswith("match_third_place_")), None)
+            if petite_finale_match:
+                # Place le perdant dans le premier slot libre de la petite finale
+                if petite_finale_match.get("player1") is None:
+                    petite_finale_match["player1"] = loser
+                elif petite_finale_match.get("player2") is None:
+                    petite_finale_match["player2"] = loser
+            # Le gagnant avance en finale (logique ci-dessous reste valable)
+
+        # 3. Logique existante pour avancer le gagnant (sauf si c'était la petite finale)
+        if not match_id.startswith("match_third_place_"):
+            next_round_index = current_round + 1
+            next_match_index = current_match_index // 2
+
+            # Trouver le match suivant (peut être la finale ou un match de tour supérieur)
+            next_match = next((m for m in tournament["knockoutMatches"]
+                               if m["round"] == next_round_index and m["matchIndex"] == next_match_index and not m["id"].startswith("match_third_place_")), None) # Exclut la petite finale ici
+
+            if next_match:
+                if current_match_index % 2 == 0: # Le gagnant va en position player1
+                    next_match["player1"] = winner
+                else: # Le gagnant va en position player2
+                    next_match["player2"] = winner
+            elif next_round_index == total_rounds: # Si on est au dernier round (la finale vient d'être jouée)
+                 tournament["winner"] = winner
+                 tournament["currentStep"] = "finished" # Marquer comme fini SEULEMENT après la finale
+            # Si next_match est None mais qu'on n'est pas au dernier round, il y a un souci (ne devrait pas arriver avec la structure générée)
+
+
+    # --- FIN DES MODIFICATIONS ---
 
     # Mettre à jour la date et sauvegarder tout le tournoi
     tournament["updatedAt"] = datetime.now(timezone.utc)
