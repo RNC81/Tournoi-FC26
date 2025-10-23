@@ -274,7 +274,7 @@ const TournamentManager = () => {
 
 
         {/* Content */}
-        <div className="fade-in">
+        <div key={currentStep} className="fade-in">
           {renderStep()}
         </div>
       </div>
