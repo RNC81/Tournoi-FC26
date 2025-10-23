@@ -33,7 +33,7 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
       const updatedTournament = await drawGroups(tournamentId);
       setTimeout(() => {
         setStartGroupAnimation(true);
-      }, 50; // Délai pour déclencher l'animation
+      }, 50); // Délai pour déclencher l'animation
       onGroupsDrawn(updatedTournament); // Met à jour l'état parent
        toast({ title: 'Tirage effectué', description: `${updatedTournament.groups.length} poule(s) créée(s) !`});
     } catch (error) {
