@@ -16,6 +16,7 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
   const [isDrawing, setIsDrawing] = useState(false); // Pour le bouton Tirage
   const [isSavingScore, setIsSavingScore] = useState(false); // Pour le bouton Valider score
   const [isCompleting, setIsCompleting] = useState(false); // Pour le bouton Terminer
+  const [startGroupAnimation, setStartGroupAnimation] = useState(false); // Nouvel état
   const { toast } = useToast();
 
   useEffect(() => {
@@ -30,11 +31,13 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
     setIsDrawing(true);
     try {
       const updatedTournament = await drawGroups(tournamentId);
+      setStartGroupAnimation(true);
       onGroupsDrawn(updatedTournament); // Met à jour l'état parent
        toast({ title: 'Tirage effectué', description: `${updatedTournament.groups.length} poule(s) créée(s) !`});
     } catch (error) {
       toast({ title: 'Erreur API', description: "Impossible de tirer les groupes.", variant: 'destructive' });
       console.error("Failed to draw groups:", error);
+      setStartGroupAnimation(false); // Assure-toi de le remettre à false en cas d'erreur
     } finally {
       setIsDrawing(false);
     }
@@ -128,7 +131,8 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
              {generatedGroups.map((group, groupIndex) => (
                <div
                  key={groupIndex}
-                 className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 shadow-2xl border border-gray-700"
+                 className={`bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 shadow-2xl border border-gray-700 group-card-reveal ${startGroupAnimation ? 'visible' : ''}`}
+                 style={{ transitionDelay: `${groupIndex * 150}ms` }}
                >
                  <h3 className="text-2xl font-bold text-cyan-400 mb-4">Poule {group.name}</h3>
 
