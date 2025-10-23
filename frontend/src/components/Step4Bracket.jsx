@@ -7,7 +7,7 @@ import { Label } from './ui/label';
 import { useToast } from '../hooks/use-toast';
 import { updateScore } from '../api'; // Import API call
 
-const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, onFinish }) => {
+const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, onFinish, groups }) => {
   const [matches, setMatches] = useState(knockoutMatches || []);
   const [selectedMatch, setSelectedMatch] = useState(null); // Juste l'objet match
   const [score1, setScore1] = useState('');
@@ -113,6 +113,41 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
            <p className="text-5xl font-black text-white">{champion}</p>
          </div>
        )}
+      
+      {champion && groups && groups.length > 0 && (
+        <div className="mt-12 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 shadow-xl border border-gray-700">
+          <h3 className="text-2xl font-bold text-center text-gray-300 mb-6">Classement Final (Phase de Poules)</h3>
+          <div className="max-h-[400px] overflow-y-auto space-y-2 pr-2">
+            {/* Calcul et tri du classement */}
+            {groups.flatMap(g => g.players) // Met tous les joueurs dans une seule liste
+              .sort((a, b) => { // Trie selon les critères standards
+                if (b.points !== a.points) return b.points - a.points;
+                if (b.goalDiff !== a.goalDiff) return b.goalDiff - a.goalDiff;
+                if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
+                return a.name.localeCompare(b.name); // Ordre alphabétique en cas d'égalité parfaite
+              })
+              .map((player, index) => (
+                <div key={player.name} className={`flex items-center justify-between p-3 rounded-lg border ${
+                    index === 0 ? 'bg-yellow-900/30 border-yellow-600/50' : // Met en surbrillance le 1er (basé sur les poules)
+                    index < 8 ? 'bg-gray-800 border-gray-700' : // Style normal pour les suivants
+                    'bg-gray-800/50 border-gray-700/50 opacity-80' // Style un peu estompé pour les non-qualifiés
+                }`}>
+                  <div className="flex items-center space-x-3">
+                    <span className={`font-bold text-lg ${index === 0 ? 'text-yellow-400' : index < 8 ? 'text-gray-200' : 'text-gray-400'}`}>
+                      #{index + 1}
+                    </span>
+                    <span className={`font-medium ${index === 0 ? 'text-white' : 'text-gray-100'}`}>{player.name}</span>
+                  </div>
+                  <div className="text-right text-sm">
+                    <span className={`font-semibold ${index === 0 ? 'text-yellow-300' : 'text-cyan-400'}`}>{player.points} pts</span>
+                    <span className="ml-3 text-gray-400">Diff: {player.goalDiff > 0 ? '+' : ''}{player.goalDiff} ({player.goalsFor} BP)</span>
+                  </div>
+                </div>
+              ))
+            }
+          </div>
+        </div>
+      )}
 
       {matches.length > 0 && !champion && (
         <div className="overflow-x-auto pb-4">

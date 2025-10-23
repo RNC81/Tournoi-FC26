@@ -6,7 +6,17 @@ import Step4Bracket from './Step4Bracket';
 import { Trophy, Loader2, Check } from 'lucide-react'; // Ajout de Loader2 pour l'indicateur
 import { useToast } from '../hooks/use-toast';
 import { getTournament } from '../api'; // Import de la fonction API
-
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from './ui/alert-dialog'; // <-- AJOUTE CET IMPORT COMPLET
 
 const TOURNAMENT_ID_LS_KEY = 'currentTournamentId';
 
@@ -135,8 +145,7 @@ const TournamentManager = () => {
     };
 
   // Fonction de réinitialisation
-  const handleResetTournament = (confirm = true) => {
-      const doReset = () => {
+  const handleResetTournament = () => {
         setIsLoading(true); // Indique qu'on recharge
         localStorage.removeItem(TOURNAMENT_ID_LS_KEY);
         setTournamentId(null);
@@ -151,15 +160,7 @@ const TournamentManager = () => {
         toast({ title: "Tournoi réinitialisé."});
         // Optionnel : Forcer un rechargement de page si nécessaire, mais normalement pas utile avec React
         // window.location.reload();
-      };
-
-      if (confirm) {
-        if (window.confirm('Êtes-vous sûr de vouloir tout recommencer ? Ceci effacera toutes les données.')) {
-           doReset();
-        }
-      } else {
-        doReset();
-      }
+      
   };
 
 
@@ -202,6 +203,7 @@ const TournamentManager = () => {
                         onScoreUpdate={handleKnockoutUpdated}
                         winner={winner}
                         onFinish={handleTournamentFinished} // Pour mettre à jour l'état final
+                        groups={groups} // Peut-être utile pour référence
                     />;
         }
 
@@ -224,12 +226,31 @@ const TournamentManager = () => {
                  <Trophy className="w-12 h-12 text-cyan-400" />
              </div>
              {currentStep !== 'config' && (
-                 <button
-                   onClick={() => handleResetTournament(true)} // Confirmation requise ici
-                   className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-all duration-300 font-medium"
-                 >
-                   Réinitialiser
-                 </button>
+                 <AlertDialog>
+                 <AlertDialogTrigger asChild>
+                   <Button
+                     variant="destructive" // Utilise la variante destructive du bouton Shadcn
+                     className="px-6 py-2 rounded-lg transition-all duration-300 font-medium"
+                   >
+                     Réinitialiser
+                   </Button>
+                 </AlertDialogTrigger>
+                 <AlertDialogContent className="bg-gray-900 border-gray-700 text-gray-100">
+                   <AlertDialogHeader>
+                     <AlertDialogTitle className="text-xl text-white">Êtes-vous sûr ?</AlertDialogTitle>
+                     <AlertDialogDescription className="text-gray-400">
+                       Cette action est irréversible et effacera toutes les données du tournoi en cours.
+                     </AlertDialogDescription>
+                   </AlertDialogHeader>
+                   <AlertDialogFooter>
+                     <AlertDialogCancel className="text-gray-300 border-gray-600 hover:bg-gray-700">Annuler</AlertDialogCancel>
+                     {/* Appel handleResetTournament SANS argument ici */}
+                     <AlertDialogAction onClick={handleResetTournament} className="bg-red-600 hover:bg-red-700 text-white">
+                       Confirmer la réinitialisation
+                     </AlertDialogAction>
+                   </AlertDialogFooter>
+                 </AlertDialogContent>
+               </AlertDialog>
                )}
         </div>
          {/* ... (indicateur d'étape reste le même) ... */}
