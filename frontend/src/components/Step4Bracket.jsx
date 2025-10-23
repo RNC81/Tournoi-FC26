@@ -154,7 +154,9 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
                    </div>
                  </>
                );
-             })()}
+             })}
+             ()
+             }
            </div>
          </div>
        )}
@@ -344,7 +346,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
                             
                         ))}
                       </div>
-                    </>
+                    </div>
                   )}
                 </div>
               )}
