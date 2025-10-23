@@ -15,7 +15,7 @@ body {
 
     /* --- NOUVEL ARRIÈRE-PLAN --- */
     /* Remplace 'images/background.jpg' si tu as nommé ton image différemment */
-    background-image: url('images/background.jpg'); 
+    background-image: url('../public/images/background.jpg'); 
     background-size: cover; /* Couvre tout l'écran */
     background-position: center center; /* Centre l'image */
     background-repeat: no-repeat; /* Ne répète pas l'image */
