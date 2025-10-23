@@ -126,15 +126,16 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
                     {round.matches.map((match) => (
                       <div
                         key={match.id}
-                        className={`bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-3 shadow-xl border border-gray-700 transition-all duration-300 ${(match.player1 && match.player2 && !match.winner) ? 'hover:border-cyan-500 cursor-pointer' : ''}`}
+                        className={`bg-gradient-to-r from-gray-800/80 to-gray-900/60 rounded-xl p-3 shadow-lg border border-gray-700/60 transition-all duration-300 ${(match.player1 && match.player2 && !match.winner) ? 'hover:border-cyan-400/80 hover:shadow-cyan-500/20 cursor-pointer' : ''}`}
                          onClick={() => (match.player1 && match.player2 && !match.winner) ? handleMatchClick(match) : null}
                       >
                         <div className="space-y-2">
                           <div
-                            className={`flex justify-between items-center px-3 py-1 rounded-md ${
-                              match.winner === match.player1
-                                ? 'bg-green-900/30 border border-green-600'
-                                : match.played ? 'bg-gray-800/50 opacity-60' : 'bg-gray-800'
+                          className={`flex justify-between items-center px-3 py-1.5 rounded-md transition-colors duration-200 ${ // py augmenté
+                            match.winner === match.player1
+                              ? 'bg-green-700/40 border border-green-500/70 text-white font-semibold' // Style gagnant renforcé
+                              : match.played ? 'bg-gray-800/40 text-gray-400 opacity-70' // Style perdant/joué
+                              : 'bg-gray-700/50 text-gray-100' // Style par défaut (non joué)
                             }`}
                           >
                             <span className="text-white font-medium truncate">{match.player1 || '...'}</span>
@@ -143,10 +144,11 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
                             )}
                           </div>
                           <div
-                            className={`flex justify-between items-center px-3 py-1 rounded-md ${
-                              match.winner === match.player2
-                                ? 'bg-green-900/30 border border-green-600'
-                                : match.played ? 'bg-gray-800/50 opacity-60' : 'bg-gray-800'
+                          className={`flex justify-between items-center px-3 py-1.5 rounded-md transition-colors duration-200 ${ // py augmenté
+                            match.winner === match.player2
+                              ? 'bg-green-700/40 border border-green-500/70 text-white font-semibold' // Style gagnant renforcé
+                              : match.played ? 'bg-gray-800/40 text-gray-400 opacity-70' // Style perdant/joué
+                              : 'bg-gray-700/50 text-gray-100' // Style par défaut (non joué)
                             }`}
                           >
                             <span className="text-white font-medium truncate">{match.player2 || '...'}</span>
