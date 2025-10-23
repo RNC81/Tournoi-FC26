@@ -180,7 +180,7 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
                      <button
                        key={match.id || matchIndex} // Utilise l'ID du match s'il existe
                        onClick={() => handleMatchClick(groupIndex, match)}
-                       className="w-full bg-gray-800 hover:bg-gray-700 rounded-lg p-3 transition-all duration-200 border border-gray-700 hover:border-cyan-500 group"
+                       className="w-full bg-gradient-to-r from-gray-800/70 to-gray-900/50 hover:from-gray-700/80 hover:to-gray-800/60 rounded-lg p-3 transition-all duration-300 border border-gray-700/50 hover:border-cyan-400/80 hover:shadow-md hover:shadow-cyan-500/20 group text-left"
                      >
                        <div className="flex justify-between items-center">
                          <span className="text-white font-medium">{match.player1}</span>
