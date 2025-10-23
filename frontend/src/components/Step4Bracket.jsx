@@ -348,6 +348,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
                     </>
                   )}
                 </div>
+    </div>
               )}
               {/* --- FIN AJOUT --- */}
 
