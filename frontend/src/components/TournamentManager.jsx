@@ -3,9 +3,10 @@ import Step1Registration from './Step1Registration';
 import Step2GroupStage from './Step2GroupStage';
 import Step3Qualification from './Step3Qualification';
 import Step4Bracket from './Step4Bracket';
-import { Trophy, Loader2 } from 'lucide-react'; // Ajout de Loader2 pour l'indicateur
+import { Trophy, Loader2, Check } from 'lucide-react'; // Ajout de Loader2 pour l'indicateur
 import { useToast } from '../hooks/use-toast';
 import { getTournament } from '../api'; // Import de la fonction API
+
 
 const TOURNAMENT_ID_LS_KEY = 'currentTournamentId';
 
@@ -232,45 +233,71 @@ const TournamentManager = () => {
                )}
         </div>
          {/* ... (indicateur d'étape reste le même) ... */}
-         <div className="flex justify-center items-center gap-4 mb-12">
-            {[ { num: 1, name: 'Config' }, { num: 2, name: 'Poules' }, { num: 3, name: 'Qualif.' }, { num: 4, name: 'Finales' }].map((stepInfo) => {
-                 let isActive = false;
-                 if (currentStep === 'config' && stepInfo.num === 1) isActive = true;
-                 if (currentStep === 'groups' && stepInfo.num === 2) isActive = true;
-                 if (currentStep === 'qualified' && stepInfo.num === 3) isActive = true;
-                 if ((currentStep === 'knockout' || currentStep === 'finished') && stepInfo.num === 4) isActive = true;
+         {/* --- Indicateur d'étape (MODIFIÉ) --- */}
+       <div className="flex justify-center items-start gap-4 mb-16"> {/* Augmentation marge basse mb-16 */}
+           {[
+             { num: 1, name: 'Config', stepKey: 'config' },
+             { num: 2, name: 'Poules', stepKey: 'groups' },
+             { num: 3, name: 'Qualif.', stepKey: 'qualified' }, // 'qualified' marque la fin des poules
+             { num: 4, name: 'Finales', stepKey: 'knockout' } // 'knockout' et 'finished' sont pour l'étape 4
+           ].map((stepInfo, index, arr) => {
+               // Détermine l'ordre des étapes pour savoir si c'est complété
+               const stepOrder = ['config', 'groups', 'qualified', 'knockout', 'finished'];
+               const currentStepIndex = stepOrder.indexOf(currentStep);
+               // Trouve l'index correspondant à stepKey DANS stepOrder
+               const thisStepLogicalIndex = stepOrder.findIndex(s => s === stepInfo.stepKey);
 
-                 let isCompleted = false;
-                 if (currentStep === 'groups' && stepInfo.num < 2) isCompleted = true;
-                 if (currentStep === 'qualified' && stepInfo.num < 3) isCompleted = true;
-                 if ((currentStep === 'knockout' || currentStep === 'finished') && stepInfo.num < 4) isCompleted = true;
-                 if (currentStep === 'finished' && stepInfo.num === 4) isCompleted = true;
+               // Conditions ajustées
+               const isActive = (currentStep === stepInfo.stepKey) ||
+                                (stepInfo.stepKey === 'knockout' && currentStep === 'finished'); // L'étape 4 reste active si fini
+               // Une étape est complétée si l'index de l'étape actuelle est strictement supérieur à l'index logique de cette étape
+               const isCompleted = currentStepIndex > thisStepLogicalIndex && thisStepLogicalIndex !== -1;
 
 
-                 return (
-                    <div key={stepInfo.num} className="flex items-center">
-                        <div
-                            className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg transition-all duration-300 ${
-                            isActive ? 'bg-gradient-to-r from-cyan-400 to-blue-500 text-white shadow-lg shadow-cyan-500/50 scale-110' :
-                            isCompleted ? 'bg-green-600 text-white' :
-                            'bg-gray-700 text-gray-400'
-                            }`}
-                        >
-                            {stepInfo.num}
-                        </div>
-                        {stepInfo.num < 4 && (
-                            <div
-                            className={`w-16 h-1 mx-2 transition-all duration-300 ${
-                                isCompleted ? 'bg-gradient-to-r from-green-600 to-green-500' :
-                                (isActive && stepInfo.num < 4) ? 'bg-gradient-to-r from-cyan-400 to-blue-500' :
-                                'bg-gray-700'
-                            }`}
-                            />
-                        )}
-                    </div>
-                )
-             })}
-         </div>
+               // Classe pour la pulsation
+               const pulseClass = isActive ? 'pulse-step' : ''; // Applique la classe si l'étape est active
+
+               // Classe pour la ligne de connexion
+               // La ligne après l'étape 'i' est complétée si l'étape 'i+1' est active ou complétée
+               // Trouve l'index logique de l'étape suivante
+               const nextStepLogicalIndex = index + 1 < arr.length ? stepOrder.findIndex(s => s === arr[index + 1].stepKey) : -1;
+               const lineCompleted = currentStepIndex >= nextStepLogicalIndex && nextStepLogicalIndex !== -1;
+
+
+               return (
+                  <div key={stepInfo.num} className="flex items-center">
+                      {/* Conteneur pour le cercle et le texte en dessous */}
+                      <div className="relative flex flex-col items-center">
+                          <div
+                              // Ajout de pulseClass, ajustement des couleurs/styles
+                              className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg transition-all duration-300 ${pulseClass} ${
+                              isActive ? 'bg-gradient-to-r from-cyan-400 to-blue-500 text-white shadow-lg shadow-cyan-500/50 scale-110' :
+                              isCompleted ? 'bg-green-600 text-white' :
+                              'bg-gray-700 text-gray-400'
+                              }`}
+                          >
+                              {/* Affiche Check si complété, sinon le numéro */}
+                              {isCompleted ? <Check className="w-6 h-6" /> : stepInfo.num}
+                          </div>
+                          {/* Ajout du nom de l'étape en dessous */}
+                          <span className="absolute top-full mt-2 text-xs text-gray-400 whitespace-nowrap">
+                            {stepInfo.name}
+                          </span>
+                      </div>
+                      {/* Ligne de connexion */}
+                      {stepInfo.num < 4 && (
+                          <div
+                          // La ligne est alignée avec le centre des cercles (approximativement via margin top)
+                          className={`w-16 h-1 mx-2 mt-[-2.5rem] transition-colors duration-500 ${ // mt négatif pour remonter la ligne
+                              lineCompleted ? 'bg-gradient-to-r from-green-600 to-green-500' : 'bg-gray-700'
+                          }`}
+                          />
+                      )}
+                  </div>
+              )
+           })}
+       </div>
+       {/* --- Fin de l'indicateur --- */}
 
 
         {/* Content */}
