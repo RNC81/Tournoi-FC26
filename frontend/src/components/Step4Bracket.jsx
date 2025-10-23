@@ -48,6 +48,9 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
   const totalRounds = maxRound >= 0 ? maxRound + 1 : 0;
 
   const handleScoreSubmit = async () => {
+    // La variable isFinalOrThirdPlace est maintenant définie dans la portée principale (render)
+    // et est accessible ici.
+
     if (score1 === '' || score2 === '') {
       toast({ title: 'Erreur', description: 'Veuillez entrer les deux scores.', variant: 'destructive' });
       return;
@@ -61,7 +64,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
     }
 
     // Vérifie si le match est la petite finale ou la finale pour l'interdiction du nul
-    const isFinalOrThirdPlace = selectedMatch?.id?.startsWith("match_third_place_") || selectedMatch?.round === (totalRounds - 1);
+    // (Utilise la variable 'isFinalOrThirdPlace' définie dans la portée du composant)
     if (isFinalOrThirdPlace && s1 === s2) {
       toast({ title: 'Erreur', description: 'Match nul interdit pour la Finale et la 3ème place.', variant: 'destructive' });
       return;
@@ -176,6 +179,11 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
     );
   };
 
+  // --- CORRECTION BUG 1 ---
+  // Définir isFinalOrThirdPlace ici pour qu'il soit accessible
+  // à la fois par handleScoreSubmit et par le JSX du Dialog
+  const isFinalOrThirdPlace = selectedMatch?.id?.startsWith("match_third_place_") || selectedMatch?.round === (totalRounds - 1);
+
 
   return (
     <div className="max-w-full mx-auto space-y-8">
@@ -234,26 +242,29 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
       {/* Affichage du Tableau (si tournoi non fini) */}
       {!champion && matches.length > 0 && (
         <div className="overflow-x-auto pb-4">
+            {/* --- CORRECTION BUG 2 (ORDRE D'AFFICHAGE) --- */}
             <div className="flex gap-8 min-w-max px-4">
-              {/* Boucle sur les rounds principaux */}
-              {roundsData.map((round, roundIndex) => (
-                // Vérifie s'il y a des matchs dans ce round avant d'afficher la colonne
-                round.matches && round.matches.length > 0 && (
-                    <div key={roundIndex} className="flex flex-col w-72 flex-shrink-0">
-                    <h3 className={`text-xl font-bold text-center mb-4 pb-2 border-b-2 ${
-                        round.name === 'Finale' ? 'text-yellow-400 border-yellow-700' : 'text-cyan-400 border-cyan-700'
-                    }`}>
-                        {round.name}
-                    </h3>
-                    <div className="space-y-4 flex-grow flex flex-col justify-around">
-                        {/* Affiche les cartes des matchs du round */}
-                        {round.matches.map(renderMatchCard)}
-                    </div>
-                    </div>
-                )
+              {/* Boucle sur les rounds (SAUF la finale) */}
+              {roundsData
+                .filter(round => round.name !== 'Finale') // <-- FILTRE AJOUTÉ
+                .map((round, roundIndex) => (
+                  // Vérifie s'il y a des matchs dans ce round avant d'afficher la colonne
+                  round.matches && round.matches.length > 0 && (
+                      <div key={roundIndex} className="flex flex-col w-72 flex-shrink-0">
+                      <h3 className={`text-xl font-bold text-center mb-4 pb-2 border-b-2 ${
+                          round.name === 'Finale' ? 'text-yellow-400 border-yellow-700' : 'text-cyan-400 border-cyan-700'
+                      }`}>
+                          {round.name}
+                      </h3>
+                      <div className="space-y-4 flex-grow flex flex-col justify-around">
+                          {/* Affiche les cartes des matchs du round */}
+                          {round.matches.map(renderMatchCard)}
+                      </div>
+                      </div>
+                  )
               ))}
 
-              {/* Colonne séparée pour la Petite Finale */}
+              {/* Colonne séparée pour la Petite Finale (MAINTENANT AVANT LA FINALE) */}
               {thirdPlaceMatch && (
                  <div className="flex flex-col w-72 flex-shrink-0">
                    <h3 className="text-xl font-bold text-orange-400 text-center mb-4 pb-2 border-b-2 border-orange-700">
@@ -265,6 +276,27 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
                    </div>
                  </div>
               )}
+
+              {/* Boucle pour la Finale SEULEMENT */}
+              {roundsData
+                .filter(round => round.name === 'Finale') // <-- FILTRE INVERSÉ
+                .map((round, roundIndex) => (
+                  // Vérifie s'il y a des matchs dans ce round avant d'afficher la colonne
+                  round.matches && round.matches.length > 0 && (
+                      // Utilise "finale" comme key pour être unique
+                      <div key="finale" className="flex flex-col w-72 flex-shrink-0"> 
+                      <h3 className={`text-xl font-bold text-center mb-4 pb-2 border-b-2 ${
+                          round.name === 'Finale' ? 'text-yellow-400 border-yellow-700' : 'text-cyan-400 border-cyan-700'
+                      }`}>
+                          {round.name}
+                      </h3>
+                      <div className="space-y-4 flex-grow flex flex-col justify-around">
+                          {/* Affiche les cartes des matchs du round */}
+                          {round.matches.map(renderMatchCard)}
+                      </div>
+                      </div>
+                  )
+              ))}
             </div> {/* Fin div flex gap-8 */}
         </div> // Fin div overflow-x-auto
       )} {/* Fin condition !champion */}
@@ -287,6 +319,8 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
            <div className="space-y-6 mt-4">
              <div className="bg-yellow-900/20 border border-yellow-600/50 rounded-lg p-3">
                <p className="text-yellow-400 text-sm text-center">
+                 {/* Utilise la variable 'isFinalOrThirdPlace' pour affichage conditionnel si besoin, 
+                    mais le message générique est OK ici */}
                  Match nul interdit pour la Finale et la 3ème place.
                </p>
              </div>
@@ -321,6 +355,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
                  <Button
                     onClick={handleScoreSubmit}
                     // La condition disabled vérifie le nul seulement si c'est la finale ou 3e place
+                    // (Utilise la variable 'isFinalOrThirdPlace' définie dans la portée du composant)
                     disabled={isSavingScore || score1 === '' || score2 === '' || (isFinalOrThirdPlace && score1 === score2)}
                     className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white"
                  >
