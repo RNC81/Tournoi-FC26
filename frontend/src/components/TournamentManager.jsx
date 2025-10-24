@@ -219,21 +219,21 @@ const TournamentManager = () => {
   return (
     <div className="min-h-screen w-full py-8 px-4">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-12 fade-in flex justify-between items-center">
-             <div className="flex items-center justify-center gap-3 mb-4 flex-grow">
-                 <Trophy className="w-12 h-12 text-cyan-400" />
-                 <h1 className="text-5xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+        {/* Header (MODIFIÉ POUR RESPONSIVE) */}
+        <div className="text-center mb-12 fade-in flex flex-col sm:flex-row justify-between items-center gap-6">
+             <div className="flex items-center justify-center gap-3 flex-grow">
+                 <Trophy className="w-8 h-8 sm:w-12 sm:h-12 text-cyan-400" />
+                 <h1 className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
                    Tournoi EA FC 26
                  </h1>
-                 <Trophy className="w-12 h-12 text-cyan-400" />
+                 <Trophy className="w-8 h-8 sm:w-12 sm:h-12 text-cyan-400" />
              </div>
              {currentStep !== 'config' && (
                  <AlertDialog>
                  <AlertDialogTrigger asChild>
                    <Button
                      variant="destructive" // Utilise la variante destructive du bouton Shadcn
-                     className="px-6 py-2 rounded-lg transition-all duration-300 font-medium"
+                     className="px-6 py-2 rounded-lg transition-all duration-300 font-medium w-full sm:w-auto" // Ajout de w-full sm:w-auto
                    >
                      Réinitialiser
                    </Button>
@@ -256,9 +256,9 @@ const TournamentManager = () => {
                </AlertDialog>
                )}
         </div>
-         {/* ... (indicateur d'étape reste le même) ... */}
-         {/* --- Indicateur d'étape (MODIFIÉ) --- */}
-       <div className="flex justify-center items-start gap-4 mb-16"> {/* Augmentation marge basse mb-16 */}
+         
+        {/* --- Indicateur d'étape (MODIFIÉ POUR RESPONSIVE) --- */}
+       <div className="flex flex-col sm:flex-row justify-center items-center sm:items-start gap-4 mb-16"> {/* Passage en flex-col, sm:flex-row */}
            {[
              { num: 1, name: 'Config', stepKey: 'config' },
              { num: 2, name: 'Poules', stepKey: 'groups' },
@@ -289,7 +289,8 @@ const TournamentManager = () => {
 
 
                return (
-                  <div key={stepInfo.num} className="flex items-center">
+                  // Conteneur d'étape passe en flex-col sm:flex-row
+                  <div key={stepInfo.num} className="flex flex-col sm:flex-row items-center">
                       {/* Conteneur pour le cercle et le texte en dessous */}
                       <div className="relative flex flex-col items-center">
                           <div
@@ -308,11 +309,11 @@ const TournamentManager = () => {
                             {stepInfo.name}
                           </span>
                       </div>
-                      {/* Ligne de connexion */}
+                      {/* Ligne de connexion (MODIFIÉE POUR RESPONSIVE) */}
                       {stepInfo.num < 4 && (
                           <div
-                          // La ligne est alignée avec le centre des cercles (approximativement via margin top)
-                          className={`w-16 h-1 mx-2 mt-[-2.5rem] transition-colors duration-500 ${ // mt négatif pour remonter la ligne
+                          // Devient verticale (h-12 w-1) par défaut, et horizontale (w-16 h-1) sur sm+
+                          className={`w-1 h-12 sm:w-16 sm:h-1 my-2 sm:my-0 sm:mx-2 sm:mt-[-2.5rem] transition-colors duration-500 ${ // mt négatif pour remonter la ligne
                               lineCompleted ? 'bg-gradient-to-r from-green-600 to-green-500' : 'bg-gray-700'
                           }`}
                           />

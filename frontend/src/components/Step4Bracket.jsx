@@ -47,6 +47,11 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
   const maxRound = mainBracketMatches.length > 0 ? Math.max(0, ...mainBracketMatches.map((m) => m ? m.round : -1)) : -1; // Ajout vérification m et Math.max(0, ...)
   const totalRounds = maxRound >= 0 ? maxRound + 1 : 0;
 
+  // --- CORRECTION BUG 1 (DEPLCEE ICI) ---
+  // Définir isFinalOrThirdPlace ici pour qu'il soit accessible
+  // à la fois par handleScoreSubmit et par le JSX du Dialog
+  const isFinalOrThirdPlace = selectedMatch?.id?.startsWith("match_third_place_") || selectedMatch?.round === (totalRounds - 1);
+
   const handleScoreSubmit = async () => {
     // La variable isFinalOrThirdPlace est maintenant définie dans la portée principale (render)
     // et est accessible ici.
@@ -179,11 +184,6 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
     );
   };
 
-  // --- CORRECTION BUG 1 ---
-  // Définir isFinalOrThirdPlace ici pour qu'il soit accessible
-  // à la fois par handleScoreSubmit et par le JSX du Dialog
-  const isFinalOrThirdPlace = selectedMatch?.id?.startsWith("match_third_place_") || selectedMatch?.round === (totalRounds - 1);
-
 
   return (
     <div className="max-w-full mx-auto space-y-8">
@@ -200,7 +200,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
         </div>
       )}
 
-      {/* Affichage du Podium */}
+      {/* Affichage du Podium (déjà responsive avec flex-col md:flex-row) */}
       {champion && thirdPlaceWinner && matches && matches.length > 0 && (
         <div className="mt-12 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-8 shadow-xl border border-gray-700">
           <h3 className="text-3xl font-bold text-center text-gray-200 mb-8">Podium Final</h3>
@@ -242,7 +242,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
       {/* Affichage du Tableau (si tournoi non fini) */}
       {!champion && matches.length > 0 && (
         <div className="overflow-x-auto pb-4">
-            {/* --- CORRECTION BUG 2 (ORDRE D'AFFICHAGE) --- */}
+            {/* --- (ORDRE D'AFFICHAGE DÉJÀ CORRIGÉ) --- */}
             <div className="flex gap-8 min-w-max px-4">
               {/* Boucle sur les rounds (SAUF la finale) */}
               {roundsData
@@ -250,7 +250,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
                 .map((round, roundIndex) => (
                   // Vérifie s'il y a des matchs dans ce round avant d'afficher la colonne
                   round.matches && round.matches.length > 0 && (
-                      <div key={roundIndex} className="flex flex-col w-72 flex-shrink-0">
+                      <div key={roundIndex} className="flex flex-col w-64 sm:w-72 flex-shrink-0"> {/* MODIFIÉ: w-64 sm:w-72 */}
                       <h3 className={`text-xl font-bold text-center mb-4 pb-2 border-b-2 ${
                           round.name === 'Finale' ? 'text-yellow-400 border-yellow-700' : 'text-cyan-400 border-cyan-700'
                       }`}>
@@ -266,7 +266,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
 
               {/* Colonne séparée pour la Petite Finale (MAINTENANT AVANT LA FINALE) */}
               {thirdPlaceMatch && (
-                 <div className="flex flex-col w-72 flex-shrink-0">
+                 <div className="flex flex-col w-64 sm:w-72 flex-shrink-0"> {/* MODIFIÉ: w-64 sm:w-72 */}
                    <h3 className="text-xl font-bold text-orange-400 text-center mb-4 pb-2 border-b-2 border-orange-700">
                      Match 3ème Place
                    </h3>
@@ -284,7 +284,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
                   // Vérifie s'il y a des matchs dans ce round avant d'afficher la colonne
                   round.matches && round.matches.length > 0 && (
                       // Utilise "finale" comme key pour être unique
-                      <div key="finale" className="flex flex-col w-72 flex-shrink-0"> 
+                      <div key="finale" className="flex flex-col w-64 sm:w-72 flex-shrink-0"> {/* MODIFIÉ: w-64 sm:w-72 */}
                       <h3 className={`text-xl font-bold text-center mb-4 pb-2 border-b-2 ${
                           round.name === 'Finale' ? 'text-yellow-400 border-yellow-700' : 'text-cyan-400 border-cyan-700'
                       }`}>

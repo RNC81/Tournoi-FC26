@@ -143,12 +143,13 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
                      <thead>
                        <tr className="border-b border-gray-700">
                          <th className="text-left py-2 px-2 text-gray-400">Joueur</th>
-                         <th className="text-center py-2 px-1 text-gray-400">J</th>
-                         <th className="text-center py-2 px-1 text-gray-400">G</th>
-                         <th className="text-center py-2 px-1 text-gray-400">N</th>
-                         <th className="text-center py-2 px-1 text-gray-400">P</th>
-                         <th className="text-center py-2 px-1 text-gray-400">BP</th>
-                         <th className="text-center py-2 px-1 text-gray-400">BC</th>
+                         {/* Colonnes masquées sur mobile (sm) ou (md) */}
+                         <th className="hidden sm:table-cell text-center py-2 px-1 text-gray-400">J</th>
+                         <th className="hidden sm:table-cell text-center py-2 px-1 text-gray-400">G</th>
+                         <th className="hidden sm:table-cell text-center py-2 px-1 text-gray-400">N</th>
+                         <th className="hidden sm:table-cell text-center py-2 px-1 text-gray-400">P</th>
+                         <th className="hidden md:table-cell text-center py-2 px-1 text-gray-400">BP</th>
+                         <th className="hidden md:table-cell text-center py-2 px-1 text-gray-400">BC</th>
                          <th className="text-center py-2 px-1 text-gray-400">Diff</th>
                          <th className="text-center py-2 px-1 text-gray-400 font-bold">Pts</th>
                        </tr>
@@ -160,12 +161,13 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
                            className={`border-b border-gray-800 hover:bg-gray-800/50 transition-colors ${player.groupPosition <= 2 ? 'bg-green-900/10' : ''}`}
                          >
                            <td className="py-2 px-2 text-white font-medium">{player.name}</td>
-                           <td className="text-center py-2 px-1 text-gray-300">{player.played}</td>
-                           <td className="text-center py-2 px-1 text-green-400">{player.won}</td>
-                           <td className="text-center py-2 px-1 text-yellow-400">{player.drawn}</td>
-                           <td className="text-center py-2 px-1 text-red-400">{player.lost}</td>
-                           <td className="text-center py-2 px-1 text-gray-300">{player.goalsFor}</td>
-                           <td className="text-center py-2 px-1 text-gray-300">{player.goalsAgainst}</td>
+                           {/* Cellules masquées sur mobile (sm) ou (md) */}
+                           <td className="hidden sm:table-cell text-center py-2 px-1 text-gray-300">{player.played}</td>
+                           <td className="hidden sm:table-cell text-center py-2 px-1 text-green-400">{player.won}</td>
+                           <td className="hidden sm:table-cell text-center py-2 px-1 text-yellow-400">{player.drawn}</td>
+                           <td className="hidden sm:table-cell text-center py-2 px-1 text-red-400">{player.lost}</td>
+                           <td className="hidden md:table-cell text-center py-2 px-1 text-gray-300">{player.goalsFor}</td>
+                           <td className="hidden md:table-cell text-center py-2 px-1 text-gray-300">{player.goalsAgainst}</td>
                            <td className="text-center py-2 px-1 text-gray-300">{player.goalDiff > 0 ? '+' : ''}{player.goalDiff}</td>
                            <td className="text-center py-2 px-1 text-cyan-400 font-bold">{player.points}</td>
                          </tr>
