@@ -1,14 +1,15 @@
+/* Modification de frontend/src/components/Step4Bracket.jsx */
 import { useState, useEffect } from 'react';
-import { Trophy, Edit, Crown, Loader2 } from 'lucide-react';
+import { Trophy, Edit, Crown, Loader2, Lock } from 'lucide-react'; // Ajout Lock
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useToast } from '../hooks/use-toast';
 import { updateScore } from '../api';
-// Pas besoin d'importer Math
 
-const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, onFinish, groups, thirdPlace }) => {
+// Ajout de isAdmin en prop
+const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, onFinish, groups, thirdPlace, isAdmin }) => {
   const [matches, setMatches] = useState(knockoutMatches || []);
   const [selectedMatch, setSelectedMatch] = useState(null);
   const [score1, setScore1] = useState('');
@@ -31,31 +32,34 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
     setThirdPlaceWinner(thirdPlace);
   }, [thirdPlace]);
 
+  // Calcule totalRounds (inchangé)
+  const mainBracketMatches = matches.filter(m => m && !m.id.startsWith("match_third_place_")); 
+  const maxRound = mainBracketMatches.length > 0 ? Math.max(0, ...mainBracketMatches.map((m) => m ? m.round : -1)) : -1; 
+  const totalRounds = maxRound >= 0 ? maxRound + 1 : 0;
+  
+  // Définition de isFinalOrThirdPlace (inchangé)
+  const isFinalOrThirdPlace = selectedMatch?.id?.startsWith("match_third_place_") || selectedMatch?.round === (totalRounds - 1);
+
   const handleMatchClick = (match) => {
-    if (!match || !match.player1 || !match.player2) { // Ajout vérification match
+    // VERROUILLAGE si !isAdmin
+    if (!isAdmin) {
+        toast({ title: 'Mode Spectateur', description: 'Vous ne pouvez pas modifier les scores.', variant: 'default' });
+        return;
+    }
+      
+    if (!match || !match.player1 || !match.player2) { 
       toast({ title: 'Match non prêt', description: 'Les joueurs ne sont pas encore déterminés.', variant: 'destructive' });
       return;
     }
+    // Reste de la logique
     setSelectedMatch(match);
     setScore1(match.score1 !== null && match.score1 !== undefined ? match.score1.toString() : '');
     setScore2(match.score2 !== null && match.score2 !== undefined ? match.score2.toString() : '');
     setIsDialogOpen(true);
   };
 
-  // Calcule totalRounds basé sur les matchs principaux (exclut petite finale)
-  const mainBracketMatches = matches.filter(m => m && !m.id.startsWith("match_third_place_")); // Ajout vérification m
-  const maxRound = mainBracketMatches.length > 0 ? Math.max(0, ...mainBracketMatches.map((m) => m ? m.round : -1)) : -1; // Ajout vérification m et Math.max(0, ...)
-  const totalRounds = maxRound >= 0 ? maxRound + 1 : 0;
-
-  // --- CORRECTION BUG 1 (DEPLCEE ICI) ---
-  // Définir isFinalOrThirdPlace ici pour qu'il soit accessible
-  // à la fois par handleScoreSubmit et par le JSX du Dialog
-  const isFinalOrThirdPlace = selectedMatch?.id?.startsWith("match_third_place_") || selectedMatch?.round === (totalRounds - 1);
-
   const handleScoreSubmit = async () => {
-    // La variable isFinalOrThirdPlace est maintenant définie dans la portée principale (render)
-    // et est accessible ici.
-
+    // ... (logique inchangée)
     if (score1 === '' || score2 === '') {
       toast({ title: 'Erreur', description: 'Veuillez entrer les deux scores.', variant: 'destructive' });
       return;
@@ -68,8 +72,6 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
       return;
     }
 
-    // Vérifie si le match est la petite finale ou la finale pour l'interdiction du nul
-    // (Utilise la variable 'isFinalOrThirdPlace' définie dans la portée du composant)
     if (isFinalOrThirdPlace && s1 === s2) {
       toast({ title: 'Erreur', description: 'Match nul interdit pour la Finale et la 3ème place.', variant: 'destructive' });
       return;
@@ -79,12 +81,10 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
     setIsSavingScore(true);
     try {
       const updatedTournament = await updateScore(tournamentId, selectedMatch.id, s1, s2);
-      onScoreUpdate(updatedTournament); // Notifie toujours le parent pour rafraîchir
+      onScoreUpdate(updatedTournament); 
 
-      // Vérifie si le tournoi est terminé (champion ET 3e place déterminés)
-      // On compare avec les données reçues APRES la mise à jour
       if (updatedTournament.winner && updatedTournament.thirdPlace) {
-        onFinish(updatedTournament); // Notifie spécifiquement la fin
+        onFinish(updatedTournament); 
       }
 
       setIsDialogOpen(false);
@@ -102,8 +102,8 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
   };
 
   const getRoundName = (round, currentTotalRounds) => {
-    // Utilise currentTotalRounds passé en argument
-    if (currentTotalRounds === 0) return "Phase Finale"; // Cas où il n'y a pas de rounds
+    // ... (logique inchangée)
+    if (currentTotalRounds === 0) return "Phase Finale";
     const roundsFromEnd = currentTotalRounds - round;
     if (roundsFromEnd === 1) return 'Finale';
     if (roundsFromEnd === 2) return 'Demi-finales';
@@ -114,30 +114,33 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
   };
 
 
-  // Crée les données pour les rounds principaux
+  // Crée les données pour les rounds (inchangé)
   const roundsData = Array.from({ length: totalRounds }).map((_, roundIndex) => ({
     name: getRoundName(roundIndex, totalRounds),
-    matches: mainBracketMatches.filter(m => m && m.round === roundIndex) // Ajout vérification m
+    matches: mainBracketMatches.filter(m => m && m.round === roundIndex) 
   }));
 
-  // Trouve le match pour la 3e place séparément
-  const thirdPlaceMatch = matches.find(m => m && m.id.startsWith("match_third_place_")); // Ajout vérification m
+  const thirdPlaceMatch = matches.find(m => m && m.id.startsWith("match_third_place_")); 
 
 
   // Fonction pour rendre une carte de match (factorisation)
   const renderMatchCard = (match) => {
-    if (!match) return null; // Sécurité ajoutée
+    if (!match) return null; 
+
+    // VERROUILLAGE : définit le style de clic
+    const isClickable = isAdmin && match.player1 && match.player2 && !match.winner;
+    const clickHandler = isClickable ? () => handleMatchClick(match) : undefined;
+    const cursorStyle = isClickable ? 'cursor-pointer' : 'cursor-default';
+    const hoverStyle = isClickable ? 'hover:border-cyan-400/80 hover:shadow-cyan-500/20' : '';
 
     return (
       <div
         key={match.id}
-        className={`bg-gradient-to-r from-gray-800/80 to-gray-900/60 rounded-xl p-3 shadow-lg border border-gray-700/60 transition-all duration-300 ${
-          (match.player1 && match.player2 && !match.winner) ? 'hover:border-cyan-400/80 hover:shadow-cyan-500/20 cursor-pointer' : ''
-        }`}
-        onClick={() => (match.player1 && match.player2 && !match.winner) ? handleMatchClick(match) : null}
+        className={`bg-gradient-to-r from-gray-800/80 to-gray-900/60 rounded-xl p-3 shadow-lg border border-gray-700/60 transition-all duration-300 ${cursorStyle} ${hoverStyle}`}
+        onClick={clickHandler}
       >
         <div className="space-y-2">
-          {/* Joueur 1 */}
+          {/* Joueur 1 (inchangé) */}
           <div
             className={`flex justify-between items-center px-3 py-1.5 rounded-md transition-colors duration-200 ${
               match.winner === match.player1
@@ -146,13 +149,12 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
                 : 'bg-gray-700/50 text-gray-100'
             }`}
           >
-            {/* Utilisation de text-white générique, la couleur vient du fond */}
             <span className="font-medium truncate">{match.player1 || '...'}</span>
-            {match.played && match.score1 !== null && ( // Ajout check score1 !== null
+            {match.played && match.score1 !== null && ( 
               <span className="text-cyan-400 font-bold">{match.score1}</span>
             )}
           </div>
-          {/* Joueur 2 */}
+          {/* Joueur 2 (inchangé) */}
           <div
             className={`flex justify-between items-center px-3 py-1.5 rounded-md transition-colors duration-200 ${
               match.winner === match.player2
@@ -161,14 +163,14 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
                 : 'bg-gray-700/50 text-gray-100'
             }`}
           >
-             {/* Utilisation de text-white générique */}
             <span className="font-medium truncate">{match.player2 || '...'}</span>
-            {match.played && match.score2 !== null && ( // Ajout check score2 !== null
+            {match.played && match.score2 !== null && ( 
               <span className="text-cyan-400 font-bold">{match.score2}</span>
             )}
           </div>
-          {/* Bouton Score */}
-          {match.player1 && match.player2 && !match.winner && (
+          
+          {/* VERROUILLAGE : Bouton Score */}
+          {isAdmin && match.player1 && match.player2 && !match.winner && (
             <Button
               variant="outline"
               size="sm"
@@ -191,7 +193,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
         <h2 className="text-3xl font-bold text-white mb-4">Tableau Final - Élimination Directe</h2>
       </div>
 
-      {/* Affichage Champion */}
+      {/* Affichage Champion (inchangé) */}
       {champion && (
         <div className="bg-gradient-to-br from-yellow-900/40 to-gray-800 rounded-2xl p-8 shadow-2xl border-4 border-yellow-500/50 text-center">
           <Crown className="w-20 h-20 text-yellow-400 mx-auto mb-4 animate-pulse" />
@@ -200,118 +202,106 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
         </div>
       )}
 
-      {/* Affichage du Podium (déjà responsive avec flex-col md:flex-row) */}
+      {/* Affichage du Podium (inchangé) */}
       {champion && thirdPlaceWinner && matches && matches.length > 0 && (
         <div className="mt-12 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-8 shadow-xl border border-gray-700">
           <h3 className="text-3xl font-bold text-center text-gray-200 mb-8">Podium Final</h3>
           <div className="flex flex-col md:flex-row justify-around items-center gap-8">
-            {(() => { // Début IIFE
-              const finalMatch = matches.find(m => m && m.round === totalRounds - 1 && !m.id.startsWith("match_third_place_")); // Ajout check m
-              const secondPlace = finalMatch && finalMatch.player1 && finalMatch.player2 // Ajout check player1/player2
+            {(() => { 
+              const finalMatch = matches.find(m => m && m.round === totalRounds - 1 && !m.id.startsWith("match_third_place_")); 
+              const secondPlace = finalMatch && finalMatch.player1 && finalMatch.player2 
                 ? (finalMatch.player1 === champion ? finalMatch.player2 : finalMatch.player1)
                 : 'Non déterminé';
 
-              return ( // Début return IIFE
+              return ( 
                 <>
-                  {/* 2ème Place */}
                   <div className="text-center order-2 md:order-1">
                     <p className="text-6xl mb-2">🥈</p>
                     <p className="text-2xl font-semibold text-gray-300">2ème Place</p>
-                    <p className="text-3xl font-bold text-gray-100 mt-1">{secondPlace || '...'}</p> {/* Fallback affichage */}
+                    <p className="text-3xl font-bold text-gray-100 mt-1">{secondPlace || '...'}</p> 
                   </div>
-                  {/* 1ère Place */}
                   <div className="text-center order-1 md:order-2 scale-110">
                     <p className="text-7xl mb-2">🥇</p>
                     <p className="text-3xl font-bold text-yellow-400">CHAMPION</p>
                     <p className="text-4xl font-extrabold text-white mt-1">{champion}</p>
                   </div>
-                  {/* 3ème Place */}
                   <div className="text-center order-3 md:order-3">
                     <p className="text-6xl mb-2">🥉</p>
                     <p className="text-2xl font-semibold text-orange-400">3ème Place</p>
                     <p className="text-3xl font-bold text-gray-100 mt-1">{thirdPlaceWinner}</p>
                   </div>
                 </>
-              ); // Fin return IIFE
-            })()}{/* Fin appel IIFE */}
-          </div> {/* Fin div flex podium */}
-        </div> // Fin div carte podium
-      )} {/* Fin condition podium */}
+              ); 
+            })()}
+          </div> 
+        </div> 
+      )} 
 
 
-      {/* Affichage du Tableau (si tournoi non fini) */}
+      {/* Affichage du Tableau (inchangé, le verrouillage se fait dans renderMatchCard) */}
       {!champion && matches.length > 0 && (
         <div className="overflow-x-auto pb-4">
-            {/* --- (ORDRE D'AFFICHAGE DÉJÀ CORRIGÉ) --- */}
             <div className="flex gap-8 min-w-max px-4">
-              {/* Boucle sur les rounds (SAUF la finale) */}
               {roundsData
-                .filter(round => round.name !== 'Finale') // <-- FILTRE AJOUTÉ
+                .filter(round => round.name !== 'Finale') 
                 .map((round, roundIndex) => (
-                  // Vérifie s'il y a des matchs dans ce round avant d'afficher la colonne
                   round.matches && round.matches.length > 0 && (
-                      <div key={roundIndex} className="flex flex-col w-64 sm:w-72 flex-shrink-0"> {/* MODIFIÉ: w-64 sm:w-72 */}
+                      <div key={roundIndex} className="flex flex-col w-64 sm:w-72 flex-shrink-0"> 
                       <h3 className={`text-xl font-bold text-center mb-4 pb-2 border-b-2 ${
                           round.name === 'Finale' ? 'text-yellow-400 border-yellow-700' : 'text-cyan-400 border-cyan-700'
                       }`}>
                           {round.name}
                       </h3>
                       <div className="space-y-4 flex-grow flex flex-col justify-around">
-                          {/* Affiche les cartes des matchs du round */}
                           {round.matches.map(renderMatchCard)}
                       </div>
                       </div>
                   )
               ))}
 
-              {/* Colonne séparée pour la Petite Finale (MAINTENANT AVANT LA FINALE) */}
               {thirdPlaceMatch && (
-                 <div className="flex flex-col w-64 sm:w-72 flex-shrink-0"> {/* MODIFIÉ: w-64 sm:w-72 */}
+                 <div className="flex flex-col w-64 sm:w-72 flex-shrink-0"> 
                    <h3 className="text-xl font-bold text-orange-400 text-center mb-4 pb-2 border-b-2 border-orange-700">
                      Match 3ème Place
                    </h3>
                    <div className="space-y-4 flex-grow flex flex-col justify-around">
-                     {/* Affiche seulement la carte de la petite finale */}
                      {renderMatchCard(thirdPlaceMatch)}
                    </div>
                  </div>
               )}
 
-              {/* Boucle pour la Finale SEULEMENT */}
               {roundsData
-                .filter(round => round.name === 'Finale') // <-- FILTRE INVERSÉ
+                .filter(round => round.name === 'Finale') 
                 .map((round, roundIndex) => (
-                  // Vérifie s'il y a des matchs dans ce round avant d'afficher la colonne
                   round.matches && round.matches.length > 0 && (
-                      // Utilise "finale" comme key pour être unique
-                      <div key="finale" className="flex flex-col w-64 sm:w-72 flex-shrink-0"> {/* MODIFIÉ: w-64 sm:w-72 */}
+                      <div key="finale" className="flex flex-col w-64 sm:w-72 flex-shrink-0"> 
                       <h3 className={`text-xl font-bold text-center mb-4 pb-2 border-b-2 ${
                           round.name === 'Finale' ? 'text-yellow-400 border-yellow-700' : 'text-cyan-400 border-cyan-700'
                       }`}>
                           {round.name}
                       </h3>
                       <div className="space-y-4 flex-grow flex flex-col justify-around">
-                          {/* Affiche les cartes des matchs du round */}
                           {round.matches.map(renderMatchCard)}
                       </div>
                       </div>
                   )
               ))}
-            </div> {/* Fin div flex gap-8 */}
-        </div> // Fin div overflow-x-auto
-      )} {/* Fin condition !champion */}
+            </div> 
+        </div> 
+      )} 
 
 
-       {/* Dialog pour entrer les scores */}
+       {/* Dialog (inchangé, le verrouillage se fait à l'ouverture) */}
        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
          <DialogContent className="bg-gray-900 border-gray-700">
            <DialogHeader>
+            {/* ... */}
              <DialogTitle className="text-2xl text-white">
                {selectedMatch && (
                  <>
-                   {selectedMatch.player1 || 'Joueur 1'} {/* Fallback affichage */}
+                   {selectedMatch.player1 || 'Joueur 1'} 
                    <span className="text-cyan-400 mx-2">vs</span>
-                   {selectedMatch.player2 || 'Joueur 2'} {/* Fallback affichage */}
+                   {selectedMatch.player2 || 'Joueur 2'} 
                  </>
                )}
              </DialogTitle>
@@ -319,12 +309,11 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
            <div className="space-y-6 mt-4">
              <div className="bg-yellow-900/20 border border-yellow-600/50 rounded-lg p-3">
                <p className="text-yellow-400 text-sm text-center">
-                 {/* Utilise la variable 'isFinalOrThirdPlace' pour affichage conditionnel si besoin, 
-                    mais le message générique est OK ici */}
                  Match nul interdit pour la Finale et la 3ème place.
                </p>
              </div>
              <div className="grid grid-cols-2 gap-4">
+              {/* ... */}
                <div>
                  <Label className="text-gray-300 mb-2 block">{selectedMatch?.player1 || '...'}</Label>
                  <Input
@@ -354,8 +343,6 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
                  <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSavingScore}>Annuler</Button>
                  <Button
                     onClick={handleScoreSubmit}
-                    // La condition disabled vérifie le nul seulement si c'est la finale ou 3e place
-                    // (Utilise la variable 'isFinalOrThirdPlace' définie dans la portée du composant)
                     disabled={isSavingScore || score1 === '' || score2 === '' || (isFinalOrThirdPlace && score1 === score2)}
                     className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white"
                  >
@@ -366,8 +353,8 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
            </div>
          </DialogContent>
        </Dialog>
-    </div> // Fin div principale
-  ); // Fin return
-}; // Fin composant
+    </div> 
+  ); 
+}; 
 
 export default Step4Bracket;

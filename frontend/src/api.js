@@ -39,6 +39,9 @@ export const createTournament = async (playerNames) => {
  */
 export const getTournament = async (tournamentId) => {
   try {
+    const url = tournamentId === 'active'
+      ? '/api/tournament/active'
+      : `/api/tournament/${tournamentId}`;
     console.log(`Fetching tournament with ID: ${tournamentId}`);
     const response = await apiClient.get(`/api/tournament/${tournamentId}`);
     console.log("Tournament data received:", response.data);

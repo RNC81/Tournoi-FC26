@@ -376,7 +376,23 @@ async def create_tournament(request: TournamentCreateRequest):
 
     return Tournament(**created_tournament)
 
-
+@api_router.get("/tournament/active", response_model=Tournament)
+async def get_active_tournament():
+    """ Récupère le dernier tournoi actif (le plus récent). """
+    # Trie par date de création descendante et prend le premier
+    tournament = await tournaments_collection.find_one(
+        {}, # Pas de filtre
+        sort=[("createdAt", -1)] # Trie par 'createdAt' descendant
+    )
+    
+    if tournament:
+        # Convertir _id en string pour Pydantic
+        tournament["id"] = str(tournament["_id"])
+        return Tournament(**tournament)
+    
+    # Si aucun tournoi n'est trouvé
+    raise HTTPException(status_code=404, detail="Aucun tournoi actif trouvé")
+    
 @api_router.get("/tournament/{tournament_id}", response_model=Tournament)
 async def get_tournament(tournament_id: str):
     """ Récupère l'état complet d'un tournoi par son ID. """

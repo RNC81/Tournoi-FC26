@@ -1,25 +1,38 @@
+/* Modification de frontend/src/components/Step1Registration.jsx */
+// (Ajout de la prop isAdmin, mais ce composant ne s'affiche que si isAdmin est true,
+// donc pas besoin de masquer des éléments. On garde la prop par cohérence.)
 import { useState } from 'react';
 import { Users, ArrowRight } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useToast } from '../hooks/use-toast';
-import { createTournament } from '../api'; // Import API call
+import { createTournament } from '../api'; 
 
-const Step1Registration = ({ onComplete }) => {
+const Step1Registration = ({ onComplete, isAdmin }) => { // Ajout isAdmin
   const [playerCount, setPlayerCount] = useState('');
   const [playerNames, setPlayerNames] = useState([]);
   const [showNameInputs, setShowNameInputs] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false); // Pour l'indicateur de chargement
+  const [isSubmitting, setIsSubmitting] = useState(false); 
   const { toast } = useToast();
 
+  // Sécurité : ne devrait pas s'afficher si !isAdmin (géré par TournamentManager)
+  if (!isAdmin) {
+      return (
+          <div className="text-center text-red-500">
+              Accès non autorisé à la configuration.
+          </div>
+      );
+  }
+
   const handlePlayerCountSubmit = () => {
+    // ... (logique inchangée)
     const count = parseInt(playerCount);
     if (!count || count < 4) {
       toast({ title: 'Erreur', description: 'Le nombre de joueurs doit être au minimum 4.', variant: 'destructive' });
       return;
     }
-    if (count > 64) { // Limite arbitraire, peut être ajustée
+    if (count > 64) { 
       toast({ title: 'Erreur', description: 'Le nombre de joueurs ne peut pas dépasser 64.', variant: 'destructive' });
       return;
     }
@@ -28,12 +41,14 @@ const Step1Registration = ({ onComplete }) => {
   };
 
   const handleNameChange = (index, value) => {
+    // ... (logique inchangée)
     const newNames = [...playerNames];
     newNames[index] = value;
     setPlayerNames(newNames);
   };
 
   const handleSubmit = async () => {
+    // ... (logique inchangée)
     const filledNames = playerNames.map(name => name.trim()).filter(name => name !== '');
 
     if (filledNames.length !== playerNames.length) {
@@ -49,10 +64,9 @@ const Step1Registration = ({ onComplete }) => {
 
     setIsSubmitting(true);
     try {
-      // Appel API pour créer le tournoi
       const tournamentData = await createTournament(filledNames);
       toast({ title: 'Succès', description: `Tournoi créé avec ${filledNames.length} joueurs !` });
-        onComplete(tournamentData); // Passe les données complètes du tournoi créé;
+        onComplete(tournamentData); 
     } catch (error) {
       toast({ title: 'Erreur API', description: "Impossible de créer le tournoi. Veuillez réessayer.", variant: 'destructive' });
       console.error("Failed to create tournament:", error);
@@ -61,6 +75,7 @@ const Step1Registration = ({ onComplete }) => {
     }
   };
 
+  // Rendu (inchangé, car déjà protégé par l'affichage conditionnel)
   return (
      <div className="max-w-4xl mx-auto">
       <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-8 shadow-2xl border border-gray-700">
