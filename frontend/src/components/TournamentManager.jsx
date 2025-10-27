@@ -263,7 +263,7 @@ const TournamentManager = ({ isAdmin }) => {
     <div className="min-h-screen w-full py-8 px-4">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-12 fade-in flex flex-col sm:flex-row justify-between items-center gap-6">
+        <div className="text-center mb-12 fade-in flex flex-col sm:flex-row justify-center items-center gap-6">
              <div className="flex items-center justify-center gap-3 flex-grow">
                  <Trophy className="w-8 h-8 sm:w-12 sm:h-12 text-cyan-400" />
                  <h1 className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
@@ -273,7 +273,7 @@ const TournamentManager = ({ isAdmin }) => {
              </div>
 
              {isAdmin && (
-                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto sm:ml-auto">
                     {currentStep !== 'config' && (
                          <AlertDialog>
                          <AlertDialogTrigger asChild>
@@ -312,7 +312,7 @@ const TournamentManager = ({ isAdmin }) => {
              )}
              
              {!isAdmin && (
-                <div className="flex items-center gap-2 bg-gray-800 text-cyan-400 px-4 py-2 rounded-lg border border-gray-700">
+                <div className="flex items-center gap-2 bg-gray-800 text-cyan-400 px-4 py-2 rounded-lg border border-gray-700 sm:lml-auto">
                     <Users className="w-5 h-5" />
                     <span className="font-medium">Mode Spectateur (Lecture seule)</span>
                 </div>
