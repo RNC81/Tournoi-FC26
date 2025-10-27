@@ -4,7 +4,7 @@ import Step1Registration from './Step1Registration';
 import Step2GroupStage from './Step2GroupStage';
 import Step3Qualification from './Step3Qualification';
 import Step4Bracket from './Step4Bracket';
-import { Trophy, Loader2, Check, ShieldOff, LogOut } from 'lucide-react'; 
+import { Trophy, Loader2, Check, ShieldOff, LogOut, Users } from 'lucide-react'; 
 import { useToast } from '../hooks/use-toast';
 import { getTournament } from '../api'; 
 import {
