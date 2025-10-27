@@ -312,7 +312,7 @@ const TournamentManager = ({ isAdmin }) => {
              )}
              
              {!isAdmin && (
-                <div className="flex items-center gap-2 bg-gray-800 text-cyan-400 px-4 py-2 rounded-lg border border-gray-700 sm:lml-auto">
+                <div className="flex items-center gap-2 bg-gray-800 text-cyan-400 px-4 py-2 rounded-lg border border-gray-700 sm:ml-auto">
                     <Users className="w-5 h-5" />
                     <span className="font-medium">Mode Spectateur (Lecture seule)</span>
                 </div>
