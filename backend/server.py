@@ -248,46 +248,80 @@ def update_group_standings_logic(group: Group) -> List[PlayerStats]:
     return sorted_players
 
 
+# Fichier: backend/server.py
+
+# ... (imports, etc.)
+
+# (Cette fonction est vers la ligne 246)
 def determine_qualifiers_logic(groups: List[Group], total_players: int) -> List[str]:
-    # --- LIGNE CORRIGÉE ---
-    # Choisir la taille du tableau final (puissance de 2) la plus proche INFÉRIEURE ou égale
-    # adaptée au nombre de joueurs. Pour 17, on veut 8 qualifiés (quarts).
-    if total_players <= 8: # Moins de 8 joueurs -> Demi-finales (4)
+    # La logique pour déterminer la CIBLE de qualifiés est correcte
+    if total_players <= 8: 
          targetQualified = 4
-    elif total_players <= 16: # Entre 9 et 16 joueurs -> Quarts (8)
+    elif total_players <= 16: 
          targetQualified = 8
-    else: # 17 joueurs et plus (jusqu'à 32) -> Huitièmes (16) - MAIS pour 17, 8 est mieux.
-         # Décidons : Si on a assez de joueurs pour remplir un tableau de 16 (ex: >24?), on prend 16.
-         # Sinon, on reste à 8. Pour 17, on reste à 8.
-         # On pourrait affiner, mais restons simple : pour 17-24 joueurs, on prend 8. Pour 25+, on prend 16.
-         targetQualified = 16 if total_players >= 24 else 8 # <--- CORRECTION DÉFINITIVE
-    # --- FIN DE LA CORRECTION ---
+    else: 
+         targetQualified = 16 if total_players >= 24 else 8 
 
     qualified = []
-    third_placed = [] # Stocke les objets PlayerStats des 3èmes
+    third_placed = [] 
+    
+    num_groups = len(groups)
 
-    # (Le reste de la fonction ne change pas)
-    for group in groups:
-        # S'assurer que les stats sont à jour et triées DANS chaque groupe
-        # La fonction update_group_standings_logic retourne les joueurs triés
-        sorted_players_in_group = update_group_standings_logic(group)
-        group.players = sorted_players_in_group # Met à jour l'objet groupe avec les joueurs triés et leur position
+    # --- NOUVELLE LOGIQUE DE VÉRIFICATION ---
+    # Vérifions si la méthode "Top 2 + Meilleurs 3èmes" est viable
+    
+    qualifiers_top_2 = num_groups * 2
+    
+    # Nombre de 3èmes places disponibles (poules de 3+)
+    available_third_places = sum(1 for g in groups if len(g.players) > 2)
+    
+    # Combien de 3èmes il nous faudrait
+    needed_if_top_2 = targetQualified - qualifiers_top_2
+    
+    # Si on a besoin de 3èmes (needed > 0) ET qu'on n'en a pas assez (available < needed)
+    if needed_if_top_2 > 0 and available_third_places < needed_if_top_2:
+        
+        # --- CAS SPÉCIAL (ex: 10 joueurs, 2 poules) ---
+        # On passe en mode "Top X par poule"
+        
+        # Calcule combien de joueurs prendre par poule (arrondi au supérieur)
+        qualifiers_per_group = math.ceil(targetQualified / num_groups) 
+        
+        logging.info(f"Cas spécial détecté: {total_players} joueurs, {num_groups} poules. Passage en mode Top {qualifiers_per_group} par poule.")
+        
+        all_players_sorted = []
+        for group in groups:
+            # Met à jour le classement de la poule
+            sorted_players_in_group = update_group_standings_logic(group)
+            group.players = sorted_players_in_group
+            # Ajoute les X premiers
+            qualified.extend(p.name for i, p in enumerate(sorted_players_in_group) if i < qualifiers_per_group)
 
-        qualified.extend(p.name for i, p in enumerate(sorted_players_in_group) if i < 2) # Prend les 2 premiers
-        if len(sorted_players_in_group) > 2:
-            third_placed.append(sorted_players_in_group[2]) # Garde le 3ème (objet PlayerStats complet)
+    else:
+        # --- LOGIQUE NORMALE (ex: 9, 11, 12, ... joueurs) ---
+        logging.info(f"Cas standard: {total_players} joueurs, {num_groups} poules. Mode Top 2 + Meilleurs 3èmes.")
+        
+        for group in groups:
+            # Met à jour le classement de la poule
+            sorted_players_in_group = update_group_standings_logic(group)
+            group.players = sorted_players_in_group 
 
-    # Calculer combien de meilleurs troisièmes il faut
-    needed = targetQualified - len(qualified)
+            qualified.extend(p.name for i, p in enumerate(sorted_players_in_group) if i < 2) # Prend les 2 premiers
+            if len(sorted_players_in_group) > 2:
+                third_placed.append(sorted_players_in_group[2]) # Garde le 3ème
 
-    if needed > 0 and third_placed:
-        # Trier les troisièmes sur la base de leurs stats
-        third_placed.sort(key=lambda p: (p.points, p.goalDiff, p.goalsFor), reverse=True)
-        # Ajouter les 'needed' meilleurs troisièmes à la liste des qualifiés
-        qualified.extend(p.name for p in third_placed[:needed])
+        # Calcule le besoin restant
+        needed = targetQualified - len(qualified)
 
-    # S'assurer qu'on ne dépasse pas la cible (sécurité)
+        if needed > 0 and third_placed:
+            # Trie les 3èmes et prend les meilleurs
+            third_placed.sort(key=lambda p: (p.points, p.goalDiff, p.goalsFor), reverse=True)
+            qualified.extend(p.name for p in third_placed[:needed])
+    
+    # S'assurer qu'on ne dépasse pas la cible (au cas où "ceil" en prendrait trop)
     return qualified[:targetQualified]
+
+# ... (Reste du fichier server.py inchangé) ...
 
 
 def generate_knockout_matches_logic(qualified_player_names: List[str]) -> List[KnockoutMatch]:
