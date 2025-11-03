@@ -13,6 +13,7 @@ const apiClient = axios.create({
     'Content-Type': 'application/json',
   },
   // avecCredentials: true // Si vous ajoutez une authentification plus tard
+  timeout: 30000, // 30 000 ms = 30 secondes
 });
 
 // --- Fonctions d'API ---
