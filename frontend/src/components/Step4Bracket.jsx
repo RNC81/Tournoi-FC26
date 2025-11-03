@@ -1,12 +1,12 @@
 /* Modification de frontend/src/components/Step4Bracket.jsx */
 import { useState, useEffect } from 'react';
-import { Trophy, Edit, Crown, Loader2, Lock } from 'lucide-react'; // Ajout Lock
+import { Trophy, Edit, Crown, Loader2, Lock, Shuffle } from 'lucide-react'; // Ajout Lock
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useToast } from '../hooks/use-toast';
-import { updateScore } from '../api';
+import { updateScore, redrawKnockout } from '../api';
 
 // Ajout de isAdmin en prop
 const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, onFinish, groups, thirdPlace, isAdmin }) => {
@@ -18,6 +18,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
   const [champion, setChampion] = useState(winner);
   const [thirdPlaceWinner, setThirdPlaceWinner] = useState(thirdPlace);
   const [isSavingScore, setIsSavingScore] = useState(false);
+  const [isRedrawing, setIsRedrawing] = useState(false); // Nouvel état pour le re-tirage
   const { toast } = useToast();
 
   useEffect(() => {
@@ -98,6 +99,32 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
       console.error("Failed to update knockout score:", error);
     } finally {
       setIsSavingScore(false);
+    }
+  };
+
+  // --- NOUVELLE FONCTION ---
+  const handleRedraw = async () => {
+    // Vérification de sécurité (normalement gérée par l'affichage du bouton, mais bon)
+    if (!isAdmin) return; 
+
+    // On vérifie si un match a été joué
+    const matchPlayed = matches.some(m => m.played);
+    if (matchPlayed) {
+        toast({ title: 'Action impossible', description: 'Vous ne pouvez pas relancer le tirage si un match a déjà été joué.', variant: 'destructive' });
+        return;
+    }
+
+    setIsRedrawing(true);
+    try {
+      const updatedTournament = await redrawKnockout(tournamentId);
+      // onScoreUpdate est parfait car il met à jour tout l'état du tournoi
+      onScoreUpdate(updatedTournament); 
+      toast({ title: 'Tirage au sort relancé', description: 'Le tableau final a été mélangé.' });
+    } catch (error) {
+      toast({ title: 'Erreur', description: error.response?.data?.detail || "Impossible de relancer le tirage.", variant: 'destructive' });
+      console.error("Failed to redraw knockout:", error);
+    } finally {
+      setIsRedrawing(false);
     }
   };
 
@@ -191,6 +218,21 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
     <div className="max-w-full mx-auto space-y-8">
       <div className="text-center">
         <h2 className="text-3xl font-bold text-white mb-4">Tableau Final - Élimination Directe</h2>
+        
+        {/* --- NOUVEAU BOUTON DE RE-TIRAGE --- */}
+        {isAdmin && !champion && (
+           <Button
+             variant="outline"
+             size="sm"
+             onClick={handleRedraw}
+             disabled={isRedrawing || matches.some(m => m.played)}
+             className="border-gray-600 text-gray-300 hover:bg-gray-700 hover:border-cyan-500"
+           >
+             {isRedrawing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Shuffle className="mr-2 h-4 w-4" />}
+             {isRedrawing ? "Mélange..." : "Relancer le tirage"}
+           </Button>
+        )}
+
       </div>
 
       {/* Affichage Champion (inchangé) */}

@@ -104,4 +104,19 @@ export const completeGroupStage = async (tournamentId) => {
   }
 };
 
+/**
+ * Regénère le tableau knockout en re-mélangeant les qualifiés.
+ * @param {string} tournamentId - L'ID du tournoi.
+ * @returns {Promise<object>} Les données du tournoi mises à jour.
+ */
+export const redrawKnockout = async (tournamentId) => {
+  try {
+    const response = await apiClient.post(`/api/tournament/${tournamentId}/redraw_knockout`);
+    return response.data;
+  } catch (error) {
+    console.error("Error redrawing knockout:", error.response?.data || error.message);
+    throw error;
+  }
+};
+
 export default apiClient;

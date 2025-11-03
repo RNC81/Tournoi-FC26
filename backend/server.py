@@ -702,6 +702,51 @@ class StatusCheck(BaseModel):
 class StatusCheckCreate(BaseModel):
     client_name: str
 
+@api_router.post("/tournament/{tournament_id}/redraw_knockout", response_model=Tournament)
+async def redraw_knockout_bracket(tournament_id: str):
+    """
+    Regénère le tableau final (knockout) en re-mélangeant les qualifiés existants.
+    Ne recalcule pas les qualifiés.
+    """
+    tournament_data = await tournaments_collection.find_one({"_id": tournament_id})
+    if not tournament_data:
+        raise HTTPException(status_code=404, detail="Tournoi non trouvé")
+
+    tournament = Tournament(**tournament_data) # Charge en Pydantic
+
+    # Vérifications de sécurité
+    if tournament.currentStep not in ["knockout", "finished"]:
+         raise HTTPException(status_code=400, detail="Le tableau final n'a pas encore été généré.")
+         
+    if not tournament.qualifiedPlayers:
+         raise HTTPException(status_code=400, detail="Aucun joueur qualifié trouvé à mélanger.")
+
+    # Vérifier si des matchs ont déjà été joués
+    if any(m.played for m in tournament.knockoutMatches):
+        raise HTTPException(status_code=400, detail="Impossible de relancer le tirage, des matchs finaux ont déjà été joués.")
+
+    # --- Logique principale ---
+    # On regénère les matchs en utilisant la liste des qualifiés DÉJÀ SAUVEGARDÉE
+    logging.info(f"Regénération du tableau pour le tournoi {tournament_id} avec {len(tournament.qualifiedPlayers)} qualifiés.")
+    new_knockout_matches = generate_knockout_matches_logic(tournament.qualifiedPlayers)
+    
+    tournament.knockoutMatches = new_knockout_matches
+    tournament.updatedAt = datetime.now(timezone.utc)
+
+    # Mettre à jour dans MongoDB
+    update_data = {
+        "$set": {
+            "knockoutMatches": [m.model_dump() for m in new_knockout_matches],
+            "updatedAt": tournament.updatedAt
+            # On ne touche ni au vainqueur, ni au currentStep, ni à la 3e place
+        }
+    }
+    await tournaments_collection.update_one({"_id": tournament_id}, update_data)
+
+    updated_tournament_data = await tournaments_collection.find_one({"_id": tournament_id})
+    updated_tournament_data["id"] = str(updated_tournament_data["_id"])
+    return Tournament(**updated_tournament_data)
+
 @api_router.post("/status", response_model=StatusCheck)
 async def create_status_check(input: StatusCheckCreate):
     status_dict = input.model_dump()
