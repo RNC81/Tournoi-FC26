@@ -253,73 +253,63 @@ def update_group_standings_logic(group: Group) -> List[PlayerStats]:
 # ... (imports, etc.)
 
 # (Cette fonction est vers la ligne 246)
+# REMPLACEZ l'ancienne fonction determine_qualifiers_logic par celle-ci :
+
 def determine_qualifiers_logic(groups: List[Group], total_players: int) -> List[str]:
-    # La logique pour déterminer la CIBLE de qualifiés est correcte
+    """
+    Logique de qualification universelle et juste pour déterminer les qualifiés.
+    """
+    
+    # 1. Déterminer la cible de qualifiés (inchangé)
     if total_players <= 8: 
          targetQualified = 4
     elif total_players <= 16: 
          targetQualified = 8
     else: 
+         # Pour 37 joueurs, total_players >= 24 est Vrai, targetQualified = 16
          targetQualified = 16 if total_players >= 24 else 8 
-
+    
+    num_groups = len(groups) # 9 poules
+    
+    # 2. Calculer combien de joueurs prendre "automatiquement" par poule
+    # ex: 16 qualifiés / 9 poules = 1.77 -> base = 1
+    base_qualifiers_per_group = math.floor(targetQualified / num_groups) 
+    
     qualified = []
-    third_placed = [] 
-    
-    num_groups = len(groups)
+    best_finishers_pool = [] # Pool pour les "meilleurs suivants"
 
-    # --- NOUVELLE LOGIQUE DE VÉRIFICATION ---
-    # Vérifions si la méthode "Top 2 + Meilleurs 3èmes" est viable
-    
-    qualifiers_top_2 = num_groups * 2
-    
-    # Nombre de 3èmes places disponibles (poules de 3+)
-    available_third_places = sum(1 for g in groups if len(g.players) > 2)
-    
-    # Combien de 3èmes il nous faudrait
-    needed_if_top_2 = targetQualified - qualifiers_top_2
-    
-    # Si on a besoin de 3èmes (needed > 0) ET qu'on n'en a pas assez (available < needed)
-    if needed_if_top_2 > 0 and available_third_places < needed_if_top_2:
-        
-        # --- CAS SPÉCIAL (ex: 10 joueurs, 2 poules) ---
-        # On passe en mode "Top X par poule"
-        
-        # Calcule combien de joueurs prendre par poule (arrondi au supérieur)
-        qualifiers_per_group = math.ceil(targetQualified / num_groups) 
-        
-        logging.info(f"Cas spécial détecté: {total_players} joueurs, {num_groups} poules. Passage en mode Top {qualifiers_per_group} par poule.")
-        
-        all_players_sorted = []
-        for group in groups:
-            # Met à jour le classement de la poule
-            sorted_players_in_group = update_group_standings_logic(group)
-            group.players = sorted_players_in_group
-            # Ajoute les X premiers
-            qualified.extend(p.name for i, p in enumerate(sorted_players_in_group) if i < qualifiers_per_group)
+    logging.info(f"Qualification: {total_players} joueurs, {num_groups} poules. Cible: {targetQualified} qualifiés.")
+    logging.info(f"Mode de qualification: Top {base_qualifiers_per_group} + meilleurs suivants.")
 
-    else:
-        # --- LOGIQUE NORMALE (ex: 9, 11, 12, ... joueurs) ---
-        logging.info(f"Cas standard: {total_players} joueurs, {num_groups} poules. Mode Top 2 + Meilleurs 3èmes.")
+    for group in groups:
+        # S'assurer que les stats sont à jour et triées
+        sorted_players_in_group = update_group_standings_logic(group)
+        group.players = sorted_players_in_group # Met à jour l'objet groupe
+
+        # 3. Prendre les 'base' qualifiés (pour 37 joueurs, le Top 1)
+        for i, player in enumerate(sorted_players_in_group):
+            if i < base_qualifiers_per_group:
+                qualified.append(player.name)
+            else:
+                # Ajouter tous les autres (2èmes, 3èmes, etc.) au pool des "meilleurs suivants"
+                best_finishers_pool.append(player) 
+                
+    # 4. Calculer le nombre de places restantes
+    # Pour 37 joueurs: needed = 16 - 9 (les Top 1) = 7
+    needed = targetQualified - len(qualified)
+
+    if needed > 0 and best_finishers_pool:
+        # 5. Trier le pool des "meilleurs suivants" (tous les 2e, 3e, 4e...)
+        best_finishers_pool.sort(key=lambda p: (p.points, p.goalDiff, p.goalsFor), reverse=True)
         
-        for group in groups:
-            # Met à jour le classement de la poule
-            sorted_players_in_group = update_group_standings_logic(group)
-            group.players = sorted_players_in_group 
+        # 6. Ajouter les 'needed' meilleurs
+        # (Pour 37 joueurs: ce sera les 7 meilleurs 2èmes)
+        qualified.extend(p.name for p in best_finishers_pool[:needed])
 
-            qualified.extend(p.name for i, p in enumerate(sorted_players_in_group) if i < 2) # Prend les 2 premiers
-            if len(sorted_players_in_group) > 2:
-                third_placed.append(sorted_players_in_group[2]) # Garde le 3ème
-
-        # Calcule le besoin restant
-        needed = targetQualified - len(qualified)
-
-        if needed > 0 and third_placed:
-            # Trie les 3èmes et prend les meilleurs
-            third_placed.sort(key=lambda p: (p.points, p.goalDiff, p.goalsFor), reverse=True)
-            qualified.extend(p.name for p in third_placed[:needed])
-    
-    # S'assurer qu'on ne dépasse pas la cible (au cas où "ceil" en prendrait trop)
+    # 7. S'assurer qu'on ne dépasse pas (sécurité)
+    logging.info(f"Total qualifiés générés: {len(qualified)}")
     return qualified[:targetQualified]
+
 
 # ... (Reste du fichier server.py inchangé) ...
 
