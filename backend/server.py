@@ -144,66 +144,36 @@ class ScoreUpdateRequest(BaseModel):
 
 # --- Fonctions Utilitaires (Logique du Tournoi) ---
 
-def calculate_optimal_group_distribution(totalPlayers):
-    # Logique de base pour les petits nombres (inchangée)
-    if totalPlayers < 3: return [totalPlayers]
-    if totalPlayers == 3: return [3]
-    if totalPlayers == 4: return [4]
-    if totalPlayers == 5: return [5]
-    if totalPlayers == 6: return [3, 3]
-    if totalPlayers == 7: return [4, 3]
-    if totalPlayers == 8: return [4, 4]
-    if totalPlayers == 9: return [3, 3, 3]
-    if totalPlayers == 10: return [5, 5]
-    if totalPlayers == 11: return [4, 4, 3]
-    if totalPlayers == 12: return [4, 4, 4]
-    if totalPlayers == 13: return [5, 4, 4]
-    if totalPlayers == 14: return [5, 5, 4]
-    if totalPlayers == 15: return [5, 5, 5]
-
-    # --- NOUVELLE LOGIQUE D'OPTIMISATION (pour 16+ joueurs) ---
+def create_groups_logic(players: List[str], num_groups: Optional[int] = None) -> List[Group]:
+    totalPlayers = len(players)
     
-    # 1. Déterminer la cible de qualifiés pour voir quel nombre de poules est "idéal"
-    # (On anticipe la logique de determine_qualifiers_logic)
-    targetQualified = 16 if totalPlayers >= 24 else 8
+    if num_groups is None or num_groups <= 0:
+        # Logique par défaut si l'admin ne choisit pas (favorise poules de 4)
+        num_groups = math.ceil(totalPlayers / 4)
+        # Ajustement pour éviter une poule de 1 ou 2 si possible
+        if totalPlayers > 8 and totalPlayers % 4 in [1, 2]:
+             num_groups = math.floor(totalPlayers / 4) # ex: 10 joueurs -> 2 poules (de 5)
+        
+        logging.info(f"Calcul auto: {totalPlayers} joueurs -> {num_groups} poules (par défaut)")
+    else:
+        logging.info(f"Calcul manuel: {totalPlayers} joueurs -> {num_groups} poules (choix admin)")
 
-    # 2. Viser 8 poules (idéal pour 8 ou 16 qualifiés -> Top 1 ou Top 2)
-    # C'est le cas pour 40 joueurs (40 / 8 = 5)
-    if totalPlayers % 8 == 0:
-        group_size = totalPlayers // 8
-        if group_size in [4, 5]: # Si la taille de poule est 4 ou 5
-            logging.info(f"Optimisation: {totalPlayers} joueurs -> 8 poules de {group_size}.")
-            return [group_size] * 8
-
-    # 3. Viser 4 poules (idéal pour 4 ou 8 qualifiés -> Top 1 ou Top 2)
-    if totalPlayers % 4 == 0:
-        group_size = totalPlayers // 4
-        if group_size in [4, 5]: # (ex: 20 joueurs -> 4 poules de 5)
-             logging.info(f"Optimisation: {totalPlayers} joueurs -> 4 poules de {group_size}.")
-             return [group_size] * 4
-
-    # 4. Viser 16 poules (si 16 qualifiés)
-    if targetQualified == 16 and totalPlayers % 16 == 0:
-         group_size = totalPlayers // 16
-         if group_size in [3, 4, 5]: # (ex: 48 joueurs -> 16 poules de 3)
-             logging.info(f"Optimisation: {totalPlayers} joueurs -> 16 poules de {group_size}.")
-             return [group_size] * 16
-
-    # 5. Si aucune optimisation "parfaite" n'est trouvée,
-    # on utilise l'ancienne logique (qui favorise les poules de 4)
-    logging.info(f"Pas d'optimisation parfaite pour {totalPlayers}. Utilisation de la logique standard (base 4).")
-    num_groups_4 = math.floor(totalPlayers / 4)
-    remainder = totalPlayers % 4
-    if remainder == 0: return [4] * num_groups_4 # Cas de 40 joueurs tombait ici (10x4)
-    if remainder == 1: return [5] + [4] * (num_groups_4 - 1) # ex: 37 joueurs -> [5, 4, 4, 4, 4, 4, 4, 4, 4] (9 poules)
-    if remainder == 2: return [5, 5] + [4] * (num_groups_4 - 2) if num_groups_4 > 1 else [3, 3]
-    if remainder == 3: return [3] + [4] * num_groups_4
+    # Nouvelle logique de répartition
+    shuffled = random.sample(players, totalPlayers)
     
-    return [4] # Fallback
+    base_size = totalPlayers // num_groups # Taille de base
+    remainder = totalPlayers % num_groups # Nbre de poules qui auront +1 joueur
+    
+    groupSizes = []
+    for i in range(num_groups):
+        if i < remainder:
+            groupSizes.append(base_size + 1) # ex: 41j, 8 poules. 41//8=5, 41%8=1. 1 poule aura 5+1=6
+        else:
+            groupSizes.append(base_size)     # ex: 7 poules auront 5
+            
+    # S'assure que la répartition est bonne (ex: [6, 5, 5, 5, 5, 5, 5, 5] pour 41/8)
+    logging.info(f"Distribution calculée des poules: {groupSizes}")
 
-def create_groups_logic(players: List[str]) -> List[Group]:
-    shuffled = random.sample(players, len(players))
-    groupSizes = calculate_optimal_group_distribution(len(shuffled))
     groups = []
     playerIndex = 0
     for i, size in enumerate(groupSizes):
@@ -217,7 +187,7 @@ def create_groups_logic(players: List[str]) -> List[Group]:
                 matches.append(GroupMatch(player1=group_player_names[j], player2=group_player_names[k]))
 
         groups.append(Group(
-            name=chr(65 + i), # Equivalent JS: chr(65 + i) en Python
+            name=chr(65 + i), 
             players=group_players_stats,
             matches=matches
         ))
@@ -405,11 +375,17 @@ async def create_tournament(request: TournamentCreateRequest):
     if len(set(player_names)) != len(player_names):
         raise HTTPException(status_code=400, detail="Les noms des joueurs doivent être uniques")
 
+    # --- MODIFICATION ICI ---
+    # Passe le numGroups (qui peut être None) à la logique de création
+    generated_groups = create_groups_logic(player_names, request.numGroups)
+    # --- FIN MODIFICATION ---
+
     # Crée la structure initiale du tournoi
     new_tournament = Tournament(
         name=request.tournamentName or f"Tournoi du {datetime.now(timezone.utc).strftime('%d/%m/%Y')}",
         players=player_names,
         currentStep="groups", # On passe directement à l'étape des groupes
+        groups=generated_groups # Les groupes sont créés IMMÉDIATEMENT
     )
 
     # Génère les groupes logiquement mais ne les assigne pas tout de suite
@@ -459,36 +435,17 @@ async def get_tournament(tournament_id: str):
     raise HTTPException(status_code=404, detail=f"Tournoi '{tournament_id}' non trouvé")
 
 
+# MODIFICATION DE /draw_groups : elle ne fait plus rien, la création se fait à l'étape 1
 @api_router.post("/tournament/{tournament_id}/draw_groups", response_model=Tournament)
 async def draw_groups(tournament_id: str):
-    """ Tire au sort et sauvegarde les groupes pour un tournoi existant. """
+    """ (OBSOLÈTE) Renvoie simplement le tournoi car les groupes sont déjà créés. """
     tournament_data = await tournaments_collection.find_one({"_id": tournament_id})
     if not tournament_data:
         raise HTTPException(status_code=404, detail="Tournoi non trouvé")
-
-    tournament = Tournament(**tournament_data) # Charge les données existantes
-
-    if tournament.currentStep != "groups" or tournament.groups:
-         raise HTTPException(status_code=400, detail="Les groupes ont déjà été tirés ou étape invalide.")
-
-    # Générer les groupes et les matchs
-    generated_groups = create_groups_logic(tournament.players)
-    tournament.groups = generated_groups
-    tournament.updatedAt = datetime.now(timezone.utc)
-
-    # Mettre à jour dans MongoDB
-    update_data = {
-        "$set": {
-            "groups": [g.model_dump() for g in generated_groups],
-            "updatedAt": tournament.updatedAt
-        }
-    }
-    await tournaments_collection.update_one({"_id": tournament_id}, update_data)
-
-    # Recharger pour être sûr
-    updated_tournament_data = await tournaments_collection.find_one({"_id": tournament_id})
-    updated_tournament_data["id"] = str(updated_tournament_data["_id"])
-    return Tournament(**updated_tournament_data)
+    
+    # On ne fait plus rien ici, on renvoie juste les données
+    tournament_data["id"] = str(tournament_data["_id"])
+    return Tournament(**tournament_data)
 
 
 @api_router.post("/tournament/{tournament_id}/match/{match_id}/score", response_model=Tournament)
