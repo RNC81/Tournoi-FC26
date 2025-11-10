@@ -1,14 +1,14 @@
 /* Modification de frontend/src/components/Step2GroupStage.jsx */
-
-// AJOUTER useMemo
-import { useState, useEffect, useMemo } from 'react'; 
-import { Shuffle, ArrowRight, Edit, Loader2, Lock } from 'lucide-react'; 
+import { useState, useEffect, useMemo } from 'react';
+// On enlève Shuffle
+import { ArrowRight, Edit, Loader2, Lock } from 'lucide-react'; 
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog'; 
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useToast } from '../hooks/use-toast';
-import { drawGroups, updateScore, completeGroupStage } from '../api'; 
+// On enlève drawGroups
+import { updateScore, completeGroupStage } from '../api'; 
 
 // AJOUT DE CETTE FONCTION HELPER (copiée du backend)
 // Elle permet de savoir combien de joueurs mettre en vert
@@ -25,7 +25,7 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
   const [score1, setScore1] = useState('');
   const [score2, setScore2] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isDrawing, setIsDrawing] = useState(false); 
+  // On enlève isDrawing
   const [isSavingScore, setIsSavingScore] = useState(false); 
   const [isCompleting, setIsCompleting] = useState(false); 
   const [startGroupAnimation, setStartGroupAnimation] = useState(false); 
@@ -38,28 +38,7 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
     }
   }, [groups]);
 
-  // ... (handleDrawGroups, handleMatchClick, handleScoreSubmit, handleCompleteStageClick - TOUS INCHANGÉS) ...
-  const handleDrawGroups = async () => {
-    if (!tournamentId) {
-        toast({ title: "Erreur", description: "ID du tournoi manquant.", variant: "destructive"});
-        return;
-    }
-    setIsDrawing(true);
-    try {
-      const updatedTournament = await drawGroups(tournamentId);
-      setTimeout(() => {
-        setStartGroupAnimation(true);
-      }, 50); 
-      onGroupsDrawn(updatedTournament); 
-       toast({ title: 'Tirage effectué', description: `${updatedTournament.groups.length} poule(s) créée(s) !`});
-    } catch (error) {
-      toast({ title: 'Erreur API', description: "Impossible de tirer les groupes.", variant: 'destructive' });
-      console.error("Failed to draw groups:", error);
-      setStartGroupAnimation(false); 
-    } finally {
-      setIsDrawing(false);
-    }
-  };
+  // LA FONCTION handleDrawGroups EST SUPPRIMÉE
 
   const handleMatchClick = (groupIndex, match) => {
     if (!isAdmin) {
@@ -162,15 +141,11 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
       <div className="text-center">
         <h2 className="text-3xl font-bold text-white mb-4">Phase de Poules</h2>
         
-        {isAdmin && generatedGroups.length === 0 && (
-          <Button
-            onClick={handleDrawGroups}
-            disabled={isDrawing}
-            className="py-6 px-8 text-lg font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white transition-all duration-300 shadow-lg shadow-cyan-500/30"
-          >
-            {isDrawing ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : <Shuffle className="mr-2 w-6 h-6" />}
-            {isDrawing ? "Tirage en cours..." : "Lancer le tirage au sort des poules"}
-          </Button>
+        {/* LE BOUTON "Lancer le tirage" A ÉTÉ SUPPRIMÉ */}
+        
+        {/* Message si les groupes sont vides (ne devrait pas arriver) */}
+        {generatedGroups.length === 0 && (
+            <p className="text-gray-400">Aucun groupe n'a été généré.</p>
         )}
       </div>
 
@@ -180,13 +155,11 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
              {generatedGroups.map((group, groupIndex) => (
                <div
                  key={groupIndex}
-                 // ... (classes inchangées)
                  className={`bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 shadow-2xl border border-gray-700 group-card-reveal ${startGroupAnimation ? 'visible' : ''}`}
                  style={{ transitionDelay: `${groupIndex * 150}ms` }}
                >
                  <h3 className="text-2xl font-bold text-cyan-400 mb-4">Poule {group.name}</h3>
 
-                 {/* ... (Tableau de poule inchangé) ... */}
                  <div className="overflow-x-auto mb-6">
                    <table className="w-full text-sm">
                      <thead>
@@ -223,7 +196,6 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
                    </table>
                  </div>
 
-                 {/* ... (Liste des matchs inchangée) ... */}
                  <div className="space-y-2">
                    <h4 className="text-sm font-semibold text-gray-400 mb-2">Matchs</h4>
                    {group.matches.map((match, matchIndex) => (
@@ -262,7 +234,6 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
            </div>
 
            {/* --- AJOUT DU CLASSEMENT GÉNÉRAL --- */}
-           {/* Il s'affiche quand tous les matchs sont joués */}
            {allMatchesPlayed && (
              <div className="mt-12 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 shadow-2xl border border-gray-700">
                <h3 className="text-2xl font-bold text-cyan-400 mb-4 text-center">Classement Général (Provisoire)</h3>
@@ -271,7 +242,7 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
                  {isAdmin && " Vous pouvez encore modifier les scores des poules ci-dessus si nécessaire avant de valider."}
                </p>
                
-               <div className="overflow-x-auto max-h-[600px] overflow-y-auto pr-2"> {/* Ajout pr-2 pour la scrollbar */}
+               <div className="overflow-x-auto max-h-[600px] overflow-y-auto pr-2">
                  <table className="w-full text-sm">
                    <thead>
                      <tr className="border-b border-gray-700">
@@ -293,7 +264,7 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
                          <tr
                            key={player.name}
                            className={`border-b border-gray-800 transition-colors ${
-                             isQualified ? 'bg-green-900/20' : '' // Enlève text-white ici
+                             isQualified ? 'bg-green-900/20' : ''
                            }`}
                          >
                            <td className={`py-2 px-2 font-medium ${isQualified ? 'text-green-400' : 'text-gray-500'}`}>{rank}</td>
@@ -320,7 +291,6 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
            {/* --- FIN DU CLASSEMENT GÉNÉRAL --- */}
 
 
-           {/* Bouton Terminer (placé après le nouveau tableau) */}
            {isAdmin && allMatchesPlayed && (
              <div className="flex justify-center mt-8">
               <Button
@@ -336,7 +306,6 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
          </>
        )}
 
-      {/* ... (Dialog pour le score, inchangé) ... */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="bg-gray-900 border-gray-700">
           <DialogHeader>

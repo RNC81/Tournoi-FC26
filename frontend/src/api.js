@@ -21,15 +21,17 @@ const apiClient = axios.create({
 /**
  * Crée un nouveau tournoi.
  * @param {string[]} playerNames - Liste des noms des joueurs.
+ * @param {number|null} numGroups - Nombre de poules souhaité (ou null).
  * @returns {Promise<object>} Les données du tournoi créé.
  */
-export const createTournament = async (playerNames) => {
+export const createTournament = async (playerNames, numGroups) => {
   try {
-    const response = await apiClient.post('/api/tournament', { playerNames });
+    // AJOUT de numGroups à la requête
+    const response = await apiClient.post('/api/tournament', { playerNames, numGroups });
     return response.data;
   } catch (error) {
     console.error("Error creating tournament:", error.response?.data || error.message);
-    throw error; // Relance l'erreur pour que le composant puisse la gérer
+    throw error; 
   }
 };
 
