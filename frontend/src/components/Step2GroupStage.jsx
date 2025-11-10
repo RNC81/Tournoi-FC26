@@ -1,12 +1,22 @@
 /* Modification de frontend/src/components/Step2GroupStage.jsx */
-import { useState, useEffect } from 'react';
-import { Shuffle, ArrowRight, Edit, Loader2, Lock } from 'lucide-react'; // Ajout Lock
+
+// AJOUTER useMemo
+import { useState, useEffect, useMemo } from 'react'; 
+import { Shuffle, ArrowRight, Edit, Loader2, Lock } from 'lucide-react'; 
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog'; 
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useToast } from '../hooks/use-toast';
 import { drawGroups, updateScore, completeGroupStage } from '../api'; 
+
+// AJOUT DE CETTE FONCTION HELPER (copiée du backend)
+// Elle permet de savoir combien de joueurs mettre en vert
+const getTargetQualifiedCount = (totalPlayers) => {
+  if (totalPlayers <= 8) return 4;
+  if (totalPlayers <= 16) return 8;
+  return totalPlayers >= 24 ? 16 : 8;
+};
 
 // Ajout de isAdmin en prop
 const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScoreUpdate, onCompleteGroups, isAdmin }) => {
@@ -23,14 +33,13 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
 
   useEffect(() => {
     setGeneratedGroups(groups || []);
-    // Déclenche l'animation si les groupes existent déjà au montage
     if (groups && groups.length > 0) {
         setTimeout(() => setStartGroupAnimation(true), 50);
     }
   }, [groups]);
 
+  // ... (handleDrawGroups, handleMatchClick, handleScoreSubmit, handleCompleteStageClick - TOUS INCHANGÉS) ...
   const handleDrawGroups = async () => {
-    // ... (logique inchangée, déjà protégée par l'affichage du bouton)
     if (!tournamentId) {
         toast({ title: "Erreur", description: "ID du tournoi manquant.", variant: "destructive"});
         return;
@@ -53,13 +62,10 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
   };
 
   const handleMatchClick = (groupIndex, match) => {
-    // VERROUILLAGE si !isAdmin
     if (!isAdmin) {
         toast({ title: 'Mode Spectateur', description: 'Vous ne pouvez pas modifier les scores.', variant: 'default' });
         return;
     }
-    
-    // Reste de la logique
     setSelectedMatch({ groupIndex, matchId: match.id });
     setScore1(match.score1 !== null ? match.score1.toString() : '');
     setScore2(match.score2 !== null ? match.score2.toString() : '');
@@ -67,7 +73,6 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
   };
 
   const handleScoreSubmit = async () => {
-     // ... (logique inchangée)
      if (score1 === '' || score2 === '') {
        toast({ title: 'Erreur', description: 'Veuillez entrer les deux scores.', variant: 'destructive' });
        return;
@@ -78,9 +83,7 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
        toast({ title: 'Erreur', description: 'Scores invalides.', variant: 'destructive' });
        return;
      }
-
      if (!selectedMatch) return;
-
      setIsSavingScore(true);
      try {
        const updatedTournament = await updateScore(tournamentId, selectedMatch.matchId, s1, s2);
@@ -101,7 +104,6 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
   };
 
   const handleCompleteStageClick = async () => {
-    // ... (logique inchangée, déjà protégée par l'affichage du bouton)
     setIsCompleting(true);
     try {
       const updatedTournament = await completeGroupStage(tournamentId);
@@ -116,16 +118,50 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
     }
   };
 
-  const allMatchesPlayed = generatedGroups.every((group) =>
-    group.matches.every((match) => match.played)
-  );
+  // --- FIN DES HANDLERS ---
+
+  const allMatchesPlayed = useMemo(() => 
+    generatedGroups.every((group) =>
+      group.matches.every((match) => match.played)
+    ), [generatedGroups]);
+
+  // --- NOUVEAU BLOC : CLASSEMENT GÉNÉRAL ---
+  const allPlayersRanked = useMemo(() => {
+    // Ne s'exécute que si les groupes existent
+    if (generatedGroups.length === 0) {
+      return [];
+    }
+    
+    // 1. Aplatir tous les joueurs de toutes les poules
+    const allPlayers = generatedGroups.flatMap(group => 
+      group.players.map(player => ({
+        ...player,
+        groupName: group.name // Ajouter le nom de la poule pour l'affichage
+      }))
+    );
+
+    // 2. Trier la liste
+    allPlayers.sort((a, b) => {
+      if (a.points !== b.points) return b.points - a.points; // Points (décroissant)
+      if (a.goalDiff !== b.goalDiff) return b.goalDiff - a.goalDiff; // Diff (décroissant)
+      if (a.goalsFor !== b.goalsFor) return b.goalsFor - a.goalsFor; // BP (décroissant)
+      return 0; // Pas de critère de tri supplémentaire
+    });
+
+    return allPlayers;
+
+  }, [generatedGroups]); // Se recalcule à chaque mise à jour de score
+
+  // Déterminer le nombre de qualifiés à surligner
+  const targetQualifiedCount = getTargetQualifiedCount(players.length);
+  // --- FIN NOUVEAU BLOC ---
+
 
   return (
      <div className="max-w-7xl mx-auto space-y-8">
       <div className="text-center">
         <h2 className="text-3xl font-bold text-white mb-4">Phase de Poules</h2>
         
-        {/* VERROUILLAGE : Bouton Tirage */}
         {isAdmin && generatedGroups.length === 0 && (
           <Button
             onClick={handleDrawGroups}
@@ -144,14 +180,15 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
              {generatedGroups.map((group, groupIndex) => (
                <div
                  key={groupIndex}
+                 // ... (classes inchangées)
                  className={`bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 shadow-2xl border border-gray-700 group-card-reveal ${startGroupAnimation ? 'visible' : ''}`}
                  style={{ transitionDelay: `${groupIndex * 150}ms` }}
                >
                  <h3 className="text-2xl font-bold text-cyan-400 mb-4">Poule {group.name}</h3>
 
+                 {/* ... (Tableau de poule inchangé) ... */}
                  <div className="overflow-x-auto mb-6">
                    <table className="w-full text-sm">
-                     {/* ... (thead inchangé) ... */}
                      <thead>
                        <tr className="border-b border-gray-700">
                          <th className="text-left py-2 px-2 text-gray-400">Joueur</th>
@@ -167,7 +204,6 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
                      </thead>
                      <tbody>
                        {group.players.map((player, playerIndex) => (
-                         // ... (tr/td inchangés) ...
                          <tr
                            key={playerIndex}
                            className={`border-b border-gray-800 hover:bg-gray-800/50 transition-colors ${player.groupPosition <= 2 ? 'bg-green-900/10' : ''}`}
@@ -187,17 +223,17 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
                    </table>
                  </div>
 
+                 {/* ... (Liste des matchs inchangée) ... */}
                  <div className="space-y-2">
                    <h4 className="text-sm font-semibold text-gray-400 mb-2">Matchs</h4>
                    {group.matches.map((match, matchIndex) => (
                      <button
                        key={match.id || matchIndex} 
                        onClick={() => handleMatchClick(groupIndex, match)}
-                       // VERROUILLAGE : change le style si !isAdmin
                        className={`w-full bg-gradient-to-r from-gray-800/70 to-gray-900/50 rounded-lg p-3 transition-all duration-300 border border-gray-700/50 group text-left ${
                          isAdmin ? 'hover:from-gray-700/80 hover:to-gray-800/60 hover:border-cyan-400/80 hover:shadow-md hover:shadow-cyan-500/20 cursor-pointer' : 'cursor-default'
                        }`}
-                       disabled={!isAdmin} // Désactive sémantiquement
+                       disabled={!isAdmin} 
                      >
                        <div className="flex justify-between items-center">
                          <span className="text-white font-medium">{match.player1}</span>
@@ -210,7 +246,6 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
                              <span className="text-gray-500">vs</span>
                            )}
                            
-                           {/* VERROUILLAGE : Affiche Edit ou Lock */}
                            {isAdmin ? (
                                 <Edit className="w-4 h-4 text-gray-500 group-hover:text-cyan-400 transition-colors" />
                            ) : (
@@ -226,7 +261,66 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
              ))}
            </div>
 
-            {/* VERROUILLAGE : Bouton Terminer */}
+           {/* --- AJOUT DU CLASSEMENT GÉNÉRAL --- */}
+           {/* Il s'affiche quand tous les matchs sont joués */}
+           {allMatchesPlayed && (
+             <div className="mt-12 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 shadow-2xl border border-gray-700">
+               <h3 className="text-2xl font-bold text-cyan-400 mb-4 text-center">Classement Général (Provisoire)</h3>
+               <p className="text-center text-gray-400 mb-6">
+                 Voici le classement général de tous les joueurs. Les {targetQualifiedCount} premiers (surlignés en vert) seront qualifiés.
+                 {isAdmin && " Vous pouvez encore modifier les scores des poules ci-dessus si nécessaire avant de valider."}
+               </p>
+               
+               <div className="overflow-x-auto max-h-[600px] overflow-y-auto pr-2"> {/* Ajout pr-2 pour la scrollbar */}
+                 <table className="w-full text-sm">
+                   <thead>
+                     <tr className="border-b border-gray-700">
+                       <th className="text-left py-2 px-2 text-gray-400">Rank</th>
+                       <th className="text-left py-2 px-2 text-gray-400">Joueur</th>
+                       <th className="text-center py-2 px-1 text-gray-400">Poule</th>
+                       <th className="text-center py-2 px-1 text-gray-400">Pts</th>
+                       <th className="text-center py-2 px-1 text-gray-400">Diff</th>
+                       <th className="text-center py-2 px-1 text-gray-400">BP</th>
+                       <th className="text-center py-2 px-1 text-gray-400">Statut (Provisoire)</th>
+                     </tr>
+                   </thead>
+                   <tbody>
+                     {allPlayersRanked.map((player, index) => {
+                       const rank = index + 1;
+                       const isQualified = rank <= targetQualifiedCount;
+                       
+                       return (
+                         <tr
+                           key={player.name}
+                           className={`border-b border-gray-800 transition-colors ${
+                             isQualified ? 'bg-green-900/20' : '' // Enlève text-white ici
+                           }`}
+                         >
+                           <td className={`py-2 px-2 font-medium ${isQualified ? 'text-green-400' : 'text-gray-500'}`}>{rank}</td>
+                           <td className={`py-2 px-2 font-medium ${isQualified ? 'text-white' : 'text-gray-400'}`}>{player.name}</td>
+                           <td className={`text-center py-2 px-1 ${isQualified ? 'text-gray-300' : 'text-gray-500'}`}>{player.groupName}</td>
+                           <td className={`text-center py-2 px-1 font-bold ${isQualified ? 'text-white' : 'text-gray-400'}`}>{player.points}</td>
+                           <td className={`text-center py-2 px-1 ${isQualified ? 'text-gray-300' : 'text-gray-500'}`}>{player.goalDiff > 0 ? '+' : ''}{player.goalDiff}</td>
+                           <td className={`text-center py-2 px-1 ${isQualified ? 'text-gray-300' : 'text-gray-500'}`}>{player.goalsFor}</td>
+                           <td className="text-center py-2 px-1 font-medium">
+                             {isQualified ? (
+                               <span className="text-green-400">Qualifié</span>
+                             ) : (
+                               <span className="text-red-400 opacity-70">Éliminé</span>
+                             )}
+                           </td>
+                         </tr>
+                       );
+                     })}
+                   </tbody>
+                 </table>
+               </div>
+             </div>
+           )}
+           {/* --- FIN DU CLASSEMENT GÉNÉRAL --- */}
+
+
+           {/* Bouton Terminer (placé après le nouveau tableau) */}
            {isAdmin && allMatchesPlayed && (
              <div className="flex justify-center mt-8">
               <Button
@@ -242,66 +336,65 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
          </>
        )}
 
-        {/* Le Dialog (popup score) ne s'ouvrira que si isAdmin grâce au handleMatchClick */}
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          {/* ... (Contenu du Dialog inchangé) ... */}
-          <DialogContent className="bg-gray-900 border-gray-700">
-            <DialogHeader>
-              <DialogTitle className="text-2xl text-white">
-                {selectedMatch && generatedGroups[selectedMatch.groupIndex]?.matches.find(m => m.id === selectedMatch.matchId) && (
-                  <>
-                    {generatedGroups[selectedMatch.groupIndex].matches.find(m => m.id === selectedMatch.matchId).player1}
-                    <span className="text-cyan-400 mx-2">vs</span>
-                    {generatedGroups[selectedMatch.groupIndex].matches.find(m => m.id === selectedMatch.matchId).player2}
-                  </>
-                )}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-6 mt-4">
-               <div className="grid grid-cols-2 gap-4">
-                 <div>
-                   <Label className="text-gray-300 mb-2 block">
-                     {selectedMatch && generatedGroups[selectedMatch.groupIndex]?.matches.find(m => m.id === selectedMatch.matchId)?.player1}
-                   </Label>
-                   <Input
-                     type="number"
-                     min="0"
-                     value={score1}
-                     onChange={(e) => setScore1(e.target.value)}
-                     placeholder="Score"
-                     className="text-2xl text-center bg-gray-800 border-gray-600 text-white"
-                     disabled={isSavingScore}
-                   />
-                 </div>
-                 <div>
-                   <Label className="text-gray-300 mb-2 block">
-                      {selectedMatch && generatedGroups[selectedMatch.groupIndex]?.matches.find(m => m.id === selectedMatch.matchId)?.player2}
-                   </Label>
-                   <Input
-                     type="number"
-                     min="0"
-                     value={score2}
-                     onChange={(e) => setScore2(e.target.value)}
-                     placeholder="Score"
-                     className="text-2xl text-center bg-gray-800 border-gray-600 text-white"
-                      disabled={isSavingScore}
-                   />
-                 </div>
+      {/* ... (Dialog pour le score, inchangé) ... */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="bg-gray-900 border-gray-700">
+          <DialogHeader>
+            <DialogTitle className="text-2xl text-white">
+              {selectedMatch && generatedGroups[selectedMatch.groupIndex]?.matches.find(m => m.id === selectedMatch.matchId) && (
+                <>
+                  {generatedGroups[selectedMatch.groupIndex].matches.find(m => m.id === selectedMatch.matchId).player1}
+                  <span className="text-cyan-400 mx-2">vs</span>
+                  {generatedGroups[selectedMatch.groupIndex].matches.find(m => m.id === selectedMatch.matchId).player2}
+                </>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6 mt-4">
+             <div className="grid grid-cols-2 gap-4">
+               <div>
+                 <Label className="text-gray-300 mb-2 block">
+                   {selectedMatch && generatedGroups[selectedMatch.groupIndex]?.matches.find(m => m.id === selectedMatch.matchId)?.player1}
+                 </Label>
+                 <Input
+                   type="number"
+                   min="0"
+                   value={score1}
+                   onChange={(e) => setScore1(e.target.value)}
+                   placeholder="Score"
+                   className="text-2xl text-center bg-gray-800 border-gray-600 text-white"
+                   disabled={isSavingScore}
+                 />
                </div>
-               <DialogFooter> 
-                  <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSavingScore}>Annuler</Button>
-                  <Button
-                      onClick={handleScoreSubmit}
-                      disabled={isSavingScore || score1 === '' || score2 === ''}
-                      className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white"
-                  >
-                      {isSavingScore ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                      {isSavingScore ? "Enregistrement..." : "Enregistrer le score"}
-                  </Button>
-               </DialogFooter>
-            </div>
-          </DialogContent>
-        </Dialog>
+               <div>
+                 <Label className="text-gray-300 mb-2 block">
+                    {selectedMatch && generatedGroups[selectedMatch.groupIndex]?.matches.find(m => m.id === selectedMatch.matchId)?.player2}
+                 </Label>
+                 <Input
+                   type="number"
+                   min="0"
+                   value={score2}
+                   onChange={(e) => setScore2(e.target.value)}
+                   placeholder="Score"
+                   className="text-2xl text-center bg-gray-800 border-gray-600 text-white"
+                    disabled={isSavingScore}
+                 />
+               </div>
+             </div>
+             <DialogFooter> 
+                <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSavingScore}>Annuler</Button>
+                <Button
+                    onClick={handleScoreSubmit}
+                    disabled={isSavingScore || score1 === '' || score2 === ''}
+                    className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white"
+                >
+                    {isSavingScore ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    {isSavingScore ? "Enregistrement..." : "Enregistrer le score"}
+                </Button>
+             </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
      </div>
   );
 };
