@@ -145,7 +145,7 @@ class ScoreUpdateRequest(BaseModel):
 # --- Fonctions Utilitaires (Logique du Tournoi) ---
 
 def calculate_optimal_group_distribution(totalPlayers):
-    # (Copie de la logique du frontend, à adapter si besoin)
+    # Logique de base pour les petits nombres (inchangée)
     if totalPlayers < 3: return [totalPlayers]
     if totalPlayers == 3: return [3]
     if totalPlayers == 4: return [4]
@@ -155,20 +155,51 @@ def calculate_optimal_group_distribution(totalPlayers):
     if totalPlayers == 8: return [4, 4]
     if totalPlayers == 9: return [3, 3, 3]
     if totalPlayers == 10: return [5, 5]
-    if totalPlayers == 11: return [4, 4, 3] # Ou [5, 3, 3] ou [4, 3, 4]? Reste simple.
+    if totalPlayers == 11: return [4, 4, 3]
     if totalPlayers == 12: return [4, 4, 4]
     if totalPlayers == 13: return [5, 4, 4]
     if totalPlayers == 14: return [5, 5, 4]
     if totalPlayers == 15: return [5, 5, 5]
-    # Pour 16+, viser des groupes de 4
+
+    # --- NOUVELLE LOGIQUE D'OPTIMISATION (pour 16+ joueurs) ---
+    
+    # 1. Déterminer la cible de qualifiés pour voir quel nombre de poules est "idéal"
+    # (On anticipe la logique de determine_qualifiers_logic)
+    targetQualified = 16 if totalPlayers >= 24 else 8
+
+    # 2. Viser 8 poules (idéal pour 8 ou 16 qualifiés -> Top 1 ou Top 2)
+    # C'est le cas pour 40 joueurs (40 / 8 = 5)
+    if totalPlayers % 8 == 0:
+        group_size = totalPlayers // 8
+        if group_size in [4, 5]: # Si la taille de poule est 4 ou 5
+            logging.info(f"Optimisation: {totalPlayers} joueurs -> 8 poules de {group_size}.")
+            return [group_size] * 8
+
+    # 3. Viser 4 poules (idéal pour 4 ou 8 qualifiés -> Top 1 ou Top 2)
+    if totalPlayers % 4 == 0:
+        group_size = totalPlayers // 4
+        if group_size in [4, 5]: # (ex: 20 joueurs -> 4 poules de 5)
+             logging.info(f"Optimisation: {totalPlayers} joueurs -> 4 poules de {group_size}.")
+             return [group_size] * 4
+
+    # 4. Viser 16 poules (si 16 qualifiés)
+    if targetQualified == 16 and totalPlayers % 16 == 0:
+         group_size = totalPlayers // 16
+         if group_size in [3, 4, 5]: # (ex: 48 joueurs -> 16 poules de 3)
+             logging.info(f"Optimisation: {totalPlayers} joueurs -> 16 poules de {group_size}.")
+             return [group_size] * 16
+
+    # 5. Si aucune optimisation "parfaite" n'est trouvée,
+    # on utilise l'ancienne logique (qui favorise les poules de 4)
+    logging.info(f"Pas d'optimisation parfaite pour {totalPlayers}. Utilisation de la logique standard (base 4).")
     num_groups_4 = math.floor(totalPlayers / 4)
     remainder = totalPlayers % 4
-    if remainder == 0: return [4] * num_groups_4
-    if remainder == 1: return [5] + [4] * (num_groups_4 - 1) if num_groups_4 > 0 else [5]
-    if remainder == 2: return [5, 5] + [4] * (num_groups_4 - 2) if num_groups_4 > 1 else [3, 3] # Préfère 5,5 si possible
+    if remainder == 0: return [4] * num_groups_4 # Cas de 40 joueurs tombait ici (10x4)
+    if remainder == 1: return [5] + [4] * (num_groups_4 - 1) # ex: 37 joueurs -> [5, 4, 4, 4, 4, 4, 4, 4, 4] (9 poules)
+    if remainder == 2: return [5, 5] + [4] * (num_groups_4 - 2) if num_groups_4 > 1 else [3, 3]
     if remainder == 3: return [3] + [4] * num_groups_4
+    
     return [4] # Fallback
-
 
 def create_groups_logic(players: List[str]) -> List[Group]:
     shuffled = random.sample(players, len(players))
