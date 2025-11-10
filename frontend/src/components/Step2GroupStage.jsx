@@ -1,4 +1,4 @@
-/* Modification de frontend/src/components/Step2GroupStage.jsx */
+/* Fichier: frontend/src/components/Step2GroupStage.jsx */
 import { useState, useEffect, useMemo } from 'react';
 // On enlève Shuffle
 import { ArrowRight, Edit, Loader2, Lock } from 'lucide-react'; 
@@ -11,14 +11,12 @@ import { useToast } from '../hooks/use-toast';
 import { updateScore, completeGroupStage } from '../api'; 
 
 // AJOUT DE CETTE FONCTION HELPER (copiée du backend)
-// Elle permet de savoir combien de joueurs mettre en vert
 const getTargetQualifiedCount = (totalPlayers) => {
   if (totalPlayers <= 8) return 4;
   if (totalPlayers <= 16) return 8;
   return totalPlayers >= 24 ? 16 : 8;
 };
 
-// Ajout de isAdmin en prop
 const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScoreUpdate, onCompleteGroups, isAdmin }) => {
   const [generatedGroups, setGeneratedGroups] = useState(groups || []);
   const [selectedMatch, setSelectedMatch] = useState(null); 
@@ -97,43 +95,31 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
     }
   };
 
-  // --- FIN DES HANDLERS ---
-
   const allMatchesPlayed = useMemo(() => 
     generatedGroups.every((group) =>
       group.matches.every((match) => match.played)
     ), [generatedGroups]);
 
-  // --- NOUVEAU BLOC : CLASSEMENT GÉNÉRAL ---
   const allPlayersRanked = useMemo(() => {
-    // Ne s'exécute que si les groupes existent
     if (generatedGroups.length === 0) {
       return [];
     }
-    
-    // 1. Aplatir tous les joueurs de toutes les poules
     const allPlayers = generatedGroups.flatMap(group => 
       group.players.map(player => ({
         ...player,
-        groupName: group.name // Ajouter le nom de la poule pour l'affichage
+        groupName: group.name 
       }))
     );
-
-    // 2. Trier la liste
     allPlayers.sort((a, b) => {
-      if (a.points !== b.points) return b.points - a.points; // Points (décroissant)
-      if (a.goalDiff !== b.goalDiff) return b.goalDiff - a.goalDiff; // Diff (décroissant)
-      if (a.goalsFor !== b.goalsFor) return b.goalsFor - a.goalsFor; // BP (décroissant)
-      return 0; // Pas de critère de tri supplémentaire
+      if (a.points !== b.points) return b.points - a.points;
+      if (a.goalDiff !== b.goalDiff) return b.goalDiff - a.goalDiff;
+      if (a.goalsFor !== b.goalsFor) return b.goalsFor - a.goalsFor;
+      return 0;
     });
-
     return allPlayers;
+  }, [generatedGroups]); 
 
-  }, [generatedGroups]); // Se recalcule à chaque mise à jour de score
-
-  // Déterminer le nombre de qualifiés à surligner
   const targetQualifiedCount = getTargetQualifiedCount(players.length);
-  // --- FIN NOUVEAU BLOC ---
 
 
   return (
@@ -143,7 +129,6 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
         
         {/* LE BOUTON "Lancer le tirage" A ÉTÉ SUPPRIMÉ */}
         
-        {/* Message si les groupes sont vides (ne devrait pas arriver) */}
         {generatedGroups.length === 0 && (
             <p className="text-gray-400">Aucun groupe n'a été généré.</p>
         )}
@@ -233,7 +218,7 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
              ))}
            </div>
 
-           {/* --- AJOUT DU CLASSEMENT GÉNÉRAL --- */}
+           {/* --- CLASSEMENT GÉNÉRAL --- */}
            {allMatchesPlayed && (
              <div className="mt-12 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 shadow-2xl border border-gray-700">
                <h3 className="text-2xl font-bold text-cyan-400 mb-4 text-center">Classement Général (Provisoire)</h3>
@@ -288,8 +273,6 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
                </div>
              </div>
            )}
-           {/* --- FIN DU CLASSEMENT GÉNÉRAL --- */}
-
 
            {isAdmin && allMatchesPlayed && (
              <div className="flex justify-center mt-8">

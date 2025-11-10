@@ -1,18 +1,16 @@
 import axios from 'axios';
 
 // Récupère l'URL de base de l'API depuis les variables d'environnement
-// VITE_API_URL est défini dans les paramètres de Render pour votre Static Site
-// La seule version correcte pour votre projet Create React App
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:10000'; // Fallback pour dev local si nécessaire
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:10000'; 
 
-console.log("Using API Base URL:", API_BASE_URL); // Pour vérifier que l'URL est correcte
+console.log("Using API Base URL:", API_BASE_URL); 
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
-  // avecCredentials: true // Si vous ajoutez une authentification plus tard
+  // Ajout du timeout pour les "cold starts" de Render
   timeout: 30000, // 30 000 ms = 30 secondes
 });
 
@@ -36,17 +34,19 @@ export const createTournament = async (playerNames, numGroups) => {
 };
 
 /**
- * Récupère les données d'un tournoi existant.
- * @param {string} tournamentId - L'ID du tournoi.
+ * Récupère les données d'un tournoi (par ID ou le 'active').
+ * @param {string} tournamentId - L'ID du tournoi ou "active".
  * @returns {Promise<object>} Les données du tournoi.
  */
 export const getTournament = async (tournamentId) => {
   try {
+    // CORRECTION : Utilise la variable 'url'
     const url = tournamentId === 'active'
       ? '/api/tournament/active'
       : `/api/tournament/${tournamentId}`;
-    console.log(`Fetching tournament with ID: ${tournamentId}`);
-    const response = await apiClient.get(`/api/tournament/${tournamentId}`);
+      
+    console.log(`Fetching tournament with ID/Alias: ${tournamentId} (URL: ${url})`);
+    const response = await apiClient.get(url); // <-- Utilise la variable 'url'
     console.log("Tournament data received:", response.data);
     return response.data;
   } catch (error) {
@@ -60,9 +60,9 @@ export const getTournament = async (tournamentId) => {
 };
 
 /**
- * Lance le tirage au sort des groupes pour un tournoi.
+ * (Obsolète) Tente de tirer les groupes. Le backend renverra juste l'état.
  * @param {string} tournamentId - L'ID du tournoi.
- * @returns {Promise<object>} Les données du tournoi mises à jour avec les groupes.
+ * @returns {Promise<object>} Les données du tournoi mises à jour.
  */
 export const drawGroups = async (tournamentId) => {
   try {

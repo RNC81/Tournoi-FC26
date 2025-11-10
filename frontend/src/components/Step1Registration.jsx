@@ -1,4 +1,4 @@
-/* Modification de frontend/src/components/Step1Registration.jsx */
+/* Fichier: frontend/src/components/Step1Registration.jsx */
 import { useState } from 'react';
 import { Users, ArrowRight, GitBranch } from 'lucide-react'; // Ajout GitBranch
 import { Button } from './ui/button';
@@ -15,7 +15,7 @@ const Step1Registration = ({ onComplete, isAdmin }) => {
   const [isSubmitting, setIsSubmitting] = useState(false); 
   const { toast } = useToast();
 
-  // Sécurité : ne devrait pas s'afficher si !isAdmin (géré par TournamentManager)
+  // Sécurité : ne devrait pas s'afficher si !isAdmin
   if (!isAdmin) {
       return (
           <div className="text-center text-red-500">
@@ -35,7 +35,7 @@ const Step1Registration = ({ onComplete, isAdmin }) => {
       return;
     }
     
-    // Pré-remplir le nombre de poules suggéré (basé sur l'ancienne logique par défaut)
+    // Pré-remplir le nombre de poules suggéré
     const suggestedGroups = Math.ceil(count / 4);
     setNumGroups(suggestedGroups.toString());
     
@@ -78,9 +78,9 @@ const Step1Registration = ({ onComplete, isAdmin }) => {
       const tournamentData = await createTournament(filledNames, finalNumGroups);
       
       toast({ title: 'Succès', description: `Tournoi créé avec ${filledNames.length} joueurs !` });
-        onComplete(tournamentData); 
+      onComplete(tournamentData); 
     } catch (error) {
-      toast({ title: 'Erreur API', description: "Impossible de créer le tournoi. Veuillez réessayer.", variant: 'destructive' });
+      toast({ title: 'Erreur API', description: error.response?.data?.detail || "Impossible de créer le tournoi.", variant: 'destructive' });
       console.error("Failed to create tournament:", error);
     } finally {
       setIsSubmitting(false);
