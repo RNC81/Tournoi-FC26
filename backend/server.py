@@ -218,8 +218,8 @@ def determine_qualifiers_logic(groups: List[Group], total_players: int) -> List[
     """
     
     # 1. Déterminer la cible de qualifiés
-if total_players <= 8: 
-         targetQualified = 4
+    if total_players <= 8: 
+             targetQualified = 4
     elif total_players <= 16: 
          targetQualified = 8
     else: 
