@@ -1,5 +1,4 @@
-/* Fichier: frontend/src/components/TournamentManager.jsx */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react'; // 1. AJOUT DE useCallback
 import Step1Registration from './Step1Registration';
 import Step2GroupStage from './Step2GroupStage';
 import Step3Qualification from './Step3Qualification';
@@ -36,19 +35,24 @@ const TournamentManager = ({ isAdmin }) => {
   const [isLoading, setIsLoading] = useState(true); 
   const { toast } = useToast();
 
-  // Fonction updateFullTournamentState (inchangée par rapport à l'étape précédente)
-  const updateFullTournamentState = (data) => {
+  // 2. MODIFICATION : 'updateFullTournamentState' est enveloppé dans useCallback
+  const updateFullTournamentState = useCallback((data) => {
     if (!data) {
-        console.warn("Attempted to update state with null data. Resetting.");
+        console.warn("Attempted to update state with null data.");
         if (isAdmin) {
-             handleResetTournament(false);
+             setCurrentStep('config');
         } else {
              setCurrentStep('no_tournament');
         }
         setIsLoading(false);
         return;
     }
-    console.log("Updating full state from API data:", data);
+    
+    // Log seulement si l'état change pour éviter le spam
+    if (data.currentStep !== currentStep || data.winner !== winner) {
+       console.log("Updating full state from API data:", data);
+    }
+
     setTournamentId(data._id || data.id); 
     setCurrentStep(data.currentStep || "config");
     setPlayers(data.players || []);
@@ -80,24 +84,21 @@ const TournamentManager = ({ isAdmin }) => {
     setWinner(data.winner || null);
     setThirdPlace(data.thirdPlace || null); 
     
-    // On sauvegarde l'ID dans localStorage DANS TOUS LES CAS.
-    // L'admin l'utilisera pour reprendre.
-    // Le spectateur ne l'utilisera pas au chargement, mais c'est inoffensif.
     if (data._id || data.id) {
         localStorage.setItem(TOURNAMENT_ID_LS_KEY, data._id || data.id);
     }
     setIsLoading(false); 
-  };
+  // Ajout des dépendances pour useCallback
+  }, [isAdmin, currentStep, winner]); 
 
 
-  // MODIFIÉ : Logique de chargement séparée
+  // useEffect de chargement initial (inchangé)
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
 
       if (isAdmin) {
         // --- LOGIQUE ADMIN ---
-        // L'admin charge son tournoi précédent depuis localStorage
         const savedId = localStorage.getItem(TOURNAMENT_ID_LS_KEY);
         if (savedId) {
           console.log(`Admin: Found saved tournament ID: ${savedId}. Fetching...`);
@@ -106,58 +107,86 @@ const TournamentManager = ({ isAdmin }) => {
             if (data) {
               updateFullTournamentState(data);
             } else {
-              // 404 - L'ID en localStorage est invalide
               console.warn(`Admin: Tournament ${savedId} not found. Resetting.`);
               localStorage.removeItem(TOURNAMENT_ID_LS_KEY);
-              setCurrentStep("config"); // Admin peut en créer un nouveau
+              setCurrentStep("config");
               setIsLoading(false);
             }
           } catch (error) {
             toast({ title: "Erreur", description: "Impossible de charger le tournoi.", variant: "destructive" });
             console.error("Admin: Failed to load tournament:", error);
-            setCurrentStep("config"); // Fallback admin
+            setCurrentStep("config");
             setIsLoading(false);
           }
         } else {
-          // Pas d'ID en localStorage, l'admin doit en créer un
           console.log("Admin: No saved tournament ID found. Starting config.");
           setCurrentStep("config"); 
           setIsLoading(false);
         }
 
       } else {
-        // --- NOUVELLE LOGIQUE SPECTATEUR ---
-        // Le spectateur charge le tournoi "actif" depuis le backend
+        // --- LOGIQUE SPECTATEUR (chargement initial) ---
         console.log("Spectator: Fetching active tournament...");
         try {
-          // Appelle l'API pour 'active' (via notre api.js modifié)
           const data = await getTournament('active'); 
-          
           if (data) {
-            // Tournoi trouvé, on l'affiche
             updateFullTournamentState(data);
           } else {
-            // l'API a retourné null (404 géré par api.js)
             console.warn("Spectator: No active tournament found on server.");
-            setCurrentStep("no_tournament"); // Spectateur voit "aucun tournoi"
+            setCurrentStep("no_tournament");
             setIsLoading(false);
           }
         } catch (error) {
-          // Erreur serveur (autre que 404)
           toast({ title: "Erreur", description: "Impossible de charger le tournoi.", variant: "destructive" });
           console.error("Spectator: Failed to load active tournament:", error);
-          setCurrentStep("no_tournament"); // Fallback spectateur
+          setCurrentStep("no_tournament");
           setIsLoading(false);
         }
       }
-    }; // fin loadData
+    };
     
     loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin]); // Se déclenche quand isAdmin est défini
+  }, [isAdmin, updateFullTournamentState, toast]); // Dépendances mises à jour
 
 
-  // ... (Reste des fonctions handle... inchangées) ...
+  // 3. --- NOUVEAU : Rafraîchissement automatique pour les spectateurs ---
+  useEffect(() => {
+    // Ne rien faire si on est admin
+    if (isAdmin) {
+      return;
+    }
+
+    // Définir l'intervalle de polling
+    const intervalId = setInterval(async () => {
+      console.log("Spectator: Polling for active tournament data...");
+      try {
+        // On ne met pas setIsLoading(true) pour éviter le flash du loader
+        const data = await getTournament('active');
+        
+        if (data) {
+          // updateFullTournamentState mettra à jour l'état
+          // et s'assurera que isLoading est false
+          updateFullTournamentState(data);
+        } else {
+          // Si le tournoi est supprimé (devient 404),
+          // on passe à l'écran "no_tournament"
+          setCurrentStep('no_tournament');
+        }
+      } catch (error) {
+        // Échec silencieux, ne pas spammer le spectateur
+        console.warn("Spectator: Poll failed (server might be down or busy)", error);
+      }
+    }, 15000); // Toutes les 15 secondes
+
+    // Fonction de nettoyage pour arrêter l'intervalle si le composant est démonté
+    return () => {
+      clearInterval(intervalId);
+    };
+    
+  }, [isAdmin, updateFullTournamentState]); // Dépend de isAdmin et de la fonction stable updateFullTournamentState
+
+
+  // --- Fonctions de gestion d'état (inchangées) ---
   const handleTournamentCreated = (tournamentData) => {
     updateFullTournamentState(tournamentData); 
   };
@@ -196,7 +225,8 @@ const TournamentManager = ({ isAdmin }) => {
       window.location.reload(); 
   };
 
-  // ... (Rendu du Loader, inchangé) ...
+
+  // Affichage pendant le chargement 
   if (isLoading) {
       return (
           <div className="flex justify-center items-center min-h-screen">
@@ -206,7 +236,7 @@ const TournamentManager = ({ isAdmin }) => {
       );
   }
 
-  // ... (Rendu 'no_tournament', inchangé) ...
+  // NOUVEL état : Spectateur et pas de tournoi
   if (currentStep === 'no_tournament') {
        return (
           <div className="flex flex-col justify-center items-center min-h-screen text-center px-4">
@@ -222,7 +252,8 @@ const TournamentManager = ({ isAdmin }) => {
        );
   }
 
-  // ... (Rendu renderStep, inchangé) ...
+
+  // Rendu conditionnel des étapes (passage de isAdmin)
   const renderStep = () => {
     switch (currentStep) {
       case 'config':
@@ -253,17 +284,18 @@ const TournamentManager = ({ isAdmin }) => {
                         isAdmin={isAdmin}
                     />;
         }
+
       default:
         return isAdmin ? <Step1Registration onComplete={handleTournamentCreated} isAdmin={isAdmin} /> : null;
     }
   };
 
-  // ... (Rendu du JSX principal (Header, Indicateur d'étape, etc.), inchangé) ...
+
   return (
     <div className="min-h-screen w-full py-8 px-4">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-12 fade-in flex flex-col sm:flex-row justify-between items-center gap-6">
+        {/* Header (corrigé pour centrer) */}
+        <div className="text-center mb-12 fade-in flex flex-col sm:flex-row justify-center items-center gap-6">
              <div className="flex items-center justify-center gap-3 flex-grow">
                  <Trophy className="w-8 h-8 sm:w-12 sm:h-12 text-cyan-400" />
                  <h1 className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
@@ -273,7 +305,7 @@ const TournamentManager = ({ isAdmin }) => {
              </div>
 
              {isAdmin && (
-                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto sm:ml-auto">
                     {currentStep !== 'config' && (
                          <AlertDialog>
                          <AlertDialogTrigger asChild>
@@ -312,14 +344,14 @@ const TournamentManager = ({ isAdmin }) => {
              )}
              
              {!isAdmin && (
-                <div className="flex items-center gap-2 bg-gray-800 text-cyan-400 px-4 py-2 rounded-lg border border-gray-700">
+                <div className="flex items-center gap-2 bg-gray-800 text-cyan-400 px-4 py-2 rounded-lg border border-gray-700 sm:ml-auto">
                     <Users className="w-5 h-5" />
                     <span className="font-medium">Mode Spectateur (Lecture seule)</span>
                 </div>
              )}
         </div>
          
-        {/* Indicateur d'étape */}
+        {/* Indicateur d'étape (inchangé) */}
        <div className="flex flex-col sm:flex-row justify-center items-center sm:items-start gap-4 mb-16"> 
            {[
              { num: 1, name: 'Config', stepKey: 'config' },
