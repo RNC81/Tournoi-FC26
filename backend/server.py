@@ -234,19 +234,42 @@ async def login_for_access_token(user_in: UserLogin):
     """
     Connecte un utilisateur et retourne un Token JWT.
     """
+    logging.info(f"Tentative de connexion pour: {user_in.username}")
     user = await get_user_from_db(user_in.username)
-    if not user or not verify_password(user_in.password, user.hashed_password):
+    
+    if not user:
+        logging.warning(f"Échec du login: utilisateur '{user_in.username}' non trouvé.")
+        raise HTTPException(
+            status_code=401,
+            detail="Nom d'utilisateur ou mot de passe incorrect",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        
+    if not verify_password(user_in.password, user.hashed_password):
+        logging.warning(f"Échec du login: mot de passe incorrect pour '{user_in.username}'.")
         raise HTTPException(
             status_code=401,
             detail="Nom d'utilisateur ou mot de passe incorrect",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
+    # --- BLOC TRY...EXCEPT AJOUTÉ POUR LE DÉBOGAGE ---
+    try:
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": user.username}, expires_delta=access_token_expires
+        )
+        logging.info(f"Connexion réussie et token créé pour: {user.username}")
+        return {"access_token": access_token, "token_type": "bearer"}
+    except Exception as e:
+        # Log de l'erreur SPÉCIFIQUE
+        logging.error(f"ERREUR CRITIQUE PENDANT LA CRÉATION DU TOKEN JWT: {e}", exc_info=True)
+        # exc_info=True va logger la stack trace complète
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur interne du serveur lors de la génération du token"
+        )
+    # --- FIN DU BLOC AJOUTÉ ---
 
 
 # --- Fonctions Utilitaires (Tournoi - Inchangées) ---
