@@ -46,7 +46,7 @@ export const getTournament = async (tournamentId) => {
       : `/api/tournament/${tournamentId}`;
       
     console.log(`Fetching tournament with ID/Alias: ${tournamentId} (URL: ${url})`);
-    const response = await apiClient.get(url); // <-- Utilise la variable 'url'
+    const response = await apiClient.get(url); // <-- CORRIGÉ: Utilise la variable 'url'
     console.log("Tournament data received:", response.data);
     return response.data;
   } catch (error) {

@@ -10,7 +10,7 @@ import { useToast } from '../hooks/use-toast';
 // On enlève drawGroups
 import { updateScore, completeGroupStage } from '../api'; 
 
-// AJOUT DE CETTE FONCTION HELPER (copiée du backend)
+// AJOUT DE CETTE FONCTION HELPER
 const getTargetQualifiedCount = (totalPlayers) => {
   if (totalPlayers <= 8) return 4;
   if (totalPlayers <= 16) return 8;
@@ -273,6 +273,8 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
                </div>
              </div>
            )}
+           {/* --- FIN DU CLASSEMENT GÉNÉRAL --- */}
+
 
            {isAdmin && allMatchesPlayed && (
              <div className="flex justify-center mt-8">
