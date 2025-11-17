@@ -10,21 +10,16 @@ from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import List, Optional, Dict, Any, Union
 import uuid
-from datetime import datetime, timezone, timedelta # --- NOUVEAU ---
+from datetime import datetime, timezone, timedelta
 import random
 import math
 from bson import ObjectId
-
-# --- NOUVEAU : Imports pour l'authentification ---
-from passlib.context import CryptContext
-from jose import JWTError, jwt
-# --- FIN NOUVEAU ---
 
 # --- Configuration initiale ---
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# --- NOUVEAU : Constantes d'authentification ---
+# --- Constantes d'authentification ---
 SECRET_KEY = os.environ.get("SECRET_KEY")
 if not SECRET_KEY:
     logging.warning("SECRET_KEY non définie, utilisation d'une clé par défaut (NON SÉCURISÉE)")
@@ -32,11 +27,9 @@ if not SECRET_KEY:
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 # 24 heures
 
-# --- NOUVEAU : Configuration Passlib ---
+# --- Configuration Passlib ---
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
-# --- FIN NOUVEAU ---
-
 
 # --- Connexion MongoDB ---
 mongo_url = os.environ.get('MONGO_URL')
@@ -48,14 +41,14 @@ if not mongo_url:
 client = AsyncIOMotorClient(mongo_url)
 db = client[db_name]
 tournaments_collection = db["tournaments"]
-users_collection = db["users"] # --- NOUVEAU : Collection utilisateurs ---
+users_collection = db["users"] # Collection utilisateurs
 
 # --- FastAPI App et Routers ---
 app = FastAPI(title="Tournament API")
 api_router = APIRouter(prefix="/api")
-auth_router = APIRouter(prefix="/api/auth") # --- NOUVEAU : Router pour l'auth ---
+auth_router = APIRouter(prefix="/api/auth")
 
-# --- Modèles Pydantic (Tournoi - Inchangés) ---
+# --- Modèles Pydantic (Tournoi) ---
 
 class PlayerStats(BaseModel):
     name: str
@@ -134,7 +127,7 @@ class ScoreUpdateRequest(BaseModel):
             raise ValueError("Les scores ne peuvent pas être négatifs")
         return v
 
-# --- NOUVEAU : Modèles Pydantic (Utilisateurs) ---
+# --- Modèles Pydantic (Utilisateurs) ---
 
 class UserBase(BaseModel):
     username: str
@@ -161,7 +154,7 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     username: Optional[str] = None
 
-# --- NOUVEAU : Fonctions de Sécurité ---
+# --- Fonctions de Sécurité ---
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
@@ -174,7 +167,6 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
-        # Utilise le temps défini dans la constante
         expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
@@ -183,7 +175,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 async def get_user_from_db(username: str):
     user = await users_collection.find_one({"username": username})
     if user:
-        user["id"] = str(user["_id"])
+        # --- CORRECTION DE LA FAUTE DE FRAPPE ---
+        # user["id"] = str(user["_id"]) # INCORRECT
+        user["_id"] = str(user["_id"]) # CORRECT
         return UserInDB(**user)
     return None
 
@@ -207,13 +201,10 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         raise credentials_exception
     return user
 
-# --- NOUVEAU : Routes d'Authentification ---
+# --- Routes d'Authentification ---
 
 @auth_router.post("/register", response_model=UserBase, status_code=201)
 async def register_user(user_in: UserCreate):
-    """
-    Crée un nouvel utilisateur.
-    """
     existing_user = await users_collection.find_one({"username": user_in.username})
     if existing_user:
         raise HTTPException(status_code=400, detail="Ce nom d'utilisateur est déjà pris")
@@ -231,9 +222,6 @@ async def register_user(user_in: UserCreate):
 
 @auth_router.post("/login", response_model=Token)
 async def login_for_access_token(user_in: UserLogin):
-    """
-    Connecte un utilisateur et retourne un Token JWT.
-    """
     logging.info(f"Tentative de connexion pour: {user_in.username}")
     user = await get_user_from_db(user_in.username)
     
@@ -253,7 +241,6 @@ async def login_for_access_token(user_in: UserLogin):
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # --- BLOC TRY...EXCEPT AJOUTÉ POUR LE DÉBOGAGE ---
     try:
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = create_access_token(
@@ -262,17 +249,13 @@ async def login_for_access_token(user_in: UserLogin):
         logging.info(f"Connexion réussie et token créé pour: {user.username}")
         return {"access_token": access_token, "token_type": "bearer"}
     except Exception as e:
-        # Log de l'erreur SPÉCIFIQUE
         logging.error(f"ERREUR CRITIQUE PENDANT LA CRÉATION DU TOKEN JWT: {e}", exc_info=True)
-        # exc_info=True va logger la stack trace complète
         raise HTTPException(
             status_code=500,
             detail=f"Erreur interne du serveur lors de la génération du token"
         )
-    # --- FIN DU BLOC AJOUTÉ ---
 
-
-# --- Fonctions Utilitaires (Tournoi - Inchangées) ---
+# --- Fonctions Utilitaires (Tournoi) ---
 
 def create_groups_logic(players: List[str], num_groups: Optional[int] = None) -> List[Group]:
     totalPlayers = len(players)
@@ -432,14 +415,16 @@ async def create_tournament(request: TournamentCreateRequest):
     inserted_result = await tournaments_collection.insert_one(tournament_dict)
     created_tournament = await tournaments_collection.find_one({"_id": inserted_result.inserted_id})
     if created_tournament and "_id" in created_tournament:
-        created_tournament["id"] = str(created_tournament["_id"])
+        # --- CORRECTION DE LA FAUTE DE FRAPPE ---
+        created_tournament["_id"] = str(created_tournament["_id"])
     return Tournament(**created_tournament)
 
 @api_router.get("/tournament/active", response_model=Tournament)
 async def get_active_tournament():
     tournament = await tournaments_collection.find_one({}, sort=[("createdAt", -1)])
     if tournament:
-        tournament["id"] = str(tournament["_id"])
+        # --- CORRECTION DE LA FAUTE DE FRAPPE ---
+        tournament["_id"] = str(tournament["_id"])
         return Tournament(**tournament)
     raise HTTPException(status_code=404, detail="Aucun tournoi actif trouvé")
     
@@ -447,7 +432,8 @@ async def get_active_tournament():
 async def get_tournament(tournament_id: str):
     tournament = await tournaments_collection.find_one({"_id": tournament_id})
     if tournament:
-        tournament["id"] = str(tournament["_id"])
+        # --- CORRECTION DE LA FAUTE DE FRAPPE ---
+        tournament["_id"] = str(tournament["_id"])
         return Tournament(**tournament)
     raise HTTPException(status_code=404, detail=f"Tournoi '{tournament_id}' non trouvé")
 
@@ -456,7 +442,8 @@ async def draw_groups(tournament_id: str):
     tournament_data = await tournaments_collection.find_one({"_id": tournament_id})
     if not tournament_data:
         raise HTTPException(status_code=404, detail="Tournoi non trouvé")
-    tournament_data["id"] = str(tournament_data["_id"])
+    # --- CORRECTION DE LA FAUTE DE FRAPPE ---
+    tournament_data["_id"] = str(tournament_data["_id"])
     return Tournament(**tournament_data)
 
 @api_router.post("/tournament/{tournament_id}/match/{match_id}/score", response_model=Tournament)
@@ -473,7 +460,8 @@ async def update_match_score(tournament_id: str, match_id: str, scores: ScoreUpd
                 for match in group["matches"]:
                     if match.get("id") == match_id:
                         if match.get("played") and match.get("score1") == scores.score1 and match.get("score2") == scores.score2:
-                            tournament["id"] = str(tournament["_id"])
+                            # --- CORRECTION DE LA FAUTE DE FRAPPE ---
+                            tournament["_id"] = str(tournament["_id"])
                             return Tournament(**tournament)
                         match["score1"] = scores.score1
                         match["score2"] = scores.score2
@@ -488,7 +476,8 @@ async def update_match_score(tournament_id: str, match_id: str, scores: ScoreUpd
         for match in tournament["knockoutMatches"]:
              if match.get("id") == match_id:
                 if match.get("played") and match.get("score1") == scores.score1 and match.get("score2") == scores.score2:
-                     tournament["id"] = str(tournament["_id"])
+                     # --- CORRECTION DE LA FAUTE DE FRAPPE ---
+                     tournament["_id"] = str(tournament["_id"])
                      return Tournament(**tournament)
                 match["score1"] = scores.score1
                 match["score2"] = scores.score2
@@ -573,7 +562,8 @@ async def update_match_score(tournament_id: str, match_id: str, scores: ScoreUpd
     tournament["updatedAt"] = datetime.now(timezone.utc)
     await tournaments_collection.update_one({"_id": tournament_id}, {"$set": tournament})
     updated_tournament_data = await tournaments_collection.find_one({"_id": tournament_id})
-    updated_tournament_data["id"] = str(updated_tournament_data["_id"])
+    # --- CORRECTION DE LA FAUTE DE FRAPPE ---
+    updated_tournament_data["_id"] = str(updated_tournament_data["_id"])
     return Tournament(**updated_tournament_data)
 
 @api_router.post("/tournament/{tournament_id}/complete_groups", response_model=Tournament)
@@ -605,7 +595,8 @@ async def complete_groups_and_draw_knockout(tournament_id: str):
     }
     await tournaments_collection.update_one({"_id": tournament_id}, update_data)
     updated_tournament_data = await tournaments_collection.find_one({"_id": tournament_id})
-    updated_tournament_data["id"] = str(updated_tournament_data["_id"])
+    # --- CORRECTION DE LA FAUTE DE FRAPPE ---
+    updated_tournament_data["_id"] = str(updated_tournament_data["_id"])
     return Tournament(**updated_tournament_data)
 
 @api_router.post("/tournament/{tournament_id}/redraw_knockout", response_model=Tournament)
@@ -627,7 +618,8 @@ async def redraw_knockout_bracket(tournament_id: str):
     update_data = {"$set": {"knockoutMatches": [m.model_dump() for m in new_knockout_matches], "updatedAt": tournament.updatedAt}}
     await tournaments_collection.update_one({"_id": tournament_id}, update_data)
     updated_tournament_data = await tournaments_collection.find_one({"_id": tournament_id})
-    updated_tournament_data["id"] = str(updated_tournament_data["_id"])
+    # --- CORRECTION DE LA FAUTE DE FRAPPE ---
+    updated_tournament_data["_id"] = str(updated_tournament_data["_id"])
     return Tournament(**updated_tournament_data)
 
 # --- Routes Status (Inchangées) ---
@@ -656,7 +648,7 @@ async def get_status_checks():
 
 # --- Inclusion du Router et Middleware CORS ---
 app.include_router(api_router)
-app.include_router(auth_router) # --- NOUVEAU : Inclusion du router d'auth ---
+app.include_router(auth_router) # Inclusion du router d'auth
 
 # !! BLOC CORS TRÈS IMPORTANT !!
 origins = [
