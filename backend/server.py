@@ -11,15 +11,17 @@ from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import List, Optional, Dict, Any, Union
 import uuid
 from datetime import datetime, timezone, timedelta
-import random
-import math
-from bson import ObjectId
+
+# --- NOUVEAU : Imports pour l'authentification ---
+from passlib.context import CryptContext # <-- L'IMPORTATION QUI MANQUAIT
+from jose import JWTError, jwt
+# --- FIN NOUVEAU ---
 
 # --- Configuration initiale ---
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# --- Constantes d'authentification ---
+# --- NOUVEAU : Constantes d'authentification ---
 SECRET_KEY = os.environ.get("SECRET_KEY")
 if not SECRET_KEY:
     logging.warning("SECRET_KEY non définie, utilisation d'une clé par défaut (NON SÉCURISÉE)")
@@ -27,9 +29,11 @@ if not SECRET_KEY:
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 # 24 heures
 
-# --- Configuration Passlib ---
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# --- NOUVEAU : Configuration Passlib ---
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto") # <-- LIGNE 36 (anciennement 31)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+# --- FIN NOUVEAU ---
+
 
 # --- Connexion MongoDB ---
 mongo_url = os.environ.get('MONGO_URL')
@@ -41,12 +45,12 @@ if not mongo_url:
 client = AsyncIOMotorClient(mongo_url)
 db = client[db_name]
 tournaments_collection = db["tournaments"]
-users_collection = db["users"] # Collection utilisateurs
+users_collection = db["users"] # --- NOUVEAU : Collection utilisateurs ---
 
 # --- FastAPI App et Routers ---
 app = FastAPI(title="Tournament API")
 api_router = APIRouter(prefix="/api")
-auth_router = APIRouter(prefix="/api/auth")
+auth_router = APIRouter(prefix="/api/auth") # --- NOUVEAU : Router pour l'auth ---
 
 # --- Modèles Pydantic (Tournoi) ---
 
@@ -176,7 +180,6 @@ async def get_user_from_db(username: str):
     user = await users_collection.find_one({"username": username})
     if user:
         # --- CORRECTION DE LA FAUTE DE FRAPPE ---
-        # user["id"] = str(user["_id"]) # INCORRECT
         user["_id"] = str(user["_id"]) # CORRECT
         return UserInDB(**user)
     return None
@@ -415,7 +418,6 @@ async def create_tournament(request: TournamentCreateRequest):
     inserted_result = await tournaments_collection.insert_one(tournament_dict)
     created_tournament = await tournaments_collection.find_one({"_id": inserted_result.inserted_id})
     if created_tournament and "_id" in created_tournament:
-        # --- CORRECTION DE LA FAUTE DE FRAPPE ---
         created_tournament["_id"] = str(created_tournament["_id"])
     return Tournament(**created_tournament)
 
@@ -423,7 +425,6 @@ async def create_tournament(request: TournamentCreateRequest):
 async def get_active_tournament():
     tournament = await tournaments_collection.find_one({}, sort=[("createdAt", -1)])
     if tournament:
-        # --- CORRECTION DE LA FAUTE DE FRAPPE ---
         tournament["_id"] = str(tournament["_id"])
         return Tournament(**tournament)
     raise HTTPException(status_code=404, detail="Aucun tournoi actif trouvé")
@@ -432,7 +433,6 @@ async def get_active_tournament():
 async def get_tournament(tournament_id: str):
     tournament = await tournaments_collection.find_one({"_id": tournament_id})
     if tournament:
-        # --- CORRECTION DE LA FAUTE DE FRAPPE ---
         tournament["_id"] = str(tournament["_id"])
         return Tournament(**tournament)
     raise HTTPException(status_code=404, detail=f"Tournoi '{tournament_id}' non trouvé")
@@ -442,7 +442,6 @@ async def draw_groups(tournament_id: str):
     tournament_data = await tournaments_collection.find_one({"_id": tournament_id})
     if not tournament_data:
         raise HTTPException(status_code=404, detail="Tournoi non trouvé")
-    # --- CORRECTION DE LA FAUTE DE FRAPPE ---
     tournament_data["_id"] = str(tournament_data["_id"])
     return Tournament(**tournament_data)
 
@@ -460,7 +459,6 @@ async def update_match_score(tournament_id: str, match_id: str, scores: ScoreUpd
                 for match in group["matches"]:
                     if match.get("id") == match_id:
                         if match.get("played") and match.get("score1") == scores.score1 and match.get("score2") == scores.score2:
-                            # --- CORRECTION DE LA FAUTE DE FRAPPE ---
                             tournament["_id"] = str(tournament["_id"])
                             return Tournament(**tournament)
                         match["score1"] = scores.score1
@@ -476,7 +474,6 @@ async def update_match_score(tournament_id: str, match_id: str, scores: ScoreUpd
         for match in tournament["knockoutMatches"]:
              if match.get("id") == match_id:
                 if match.get("played") and match.get("score1") == scores.score1 and match.get("score2") == scores.score2:
-                     # --- CORRECTION DE LA FAUTE DE FRAPPE ---
                      tournament["_id"] = str(tournament["_id"])
                      return Tournament(**tournament)
                 match["score1"] = scores.score1
@@ -562,7 +559,6 @@ async def update_match_score(tournament_id: str, match_id: str, scores: ScoreUpd
     tournament["updatedAt"] = datetime.now(timezone.utc)
     await tournaments_collection.update_one({"_id": tournament_id}, {"$set": tournament})
     updated_tournament_data = await tournaments_collection.find_one({"_id": tournament_id})
-    # --- CORRECTION DE LA FAUTE DE FRAPPE ---
     updated_tournament_data["_id"] = str(updated_tournament_data["_id"])
     return Tournament(**updated_tournament_data)
 
@@ -595,7 +591,6 @@ async def complete_groups_and_draw_knockout(tournament_id: str):
     }
     await tournaments_collection.update_one({"_id": tournament_id}, update_data)
     updated_tournament_data = await tournaments_collection.find_one({"_id": tournament_id})
-    # --- CORRECTION DE LA FAUTE DE FRAPPE ---
     updated_tournament_data["_id"] = str(updated_tournament_data["_id"])
     return Tournament(**updated_tournament_data)
 
@@ -618,7 +613,6 @@ async def redraw_knockout_bracket(tournament_id: str):
     update_data = {"$set": {"knockoutMatches": [m.model_dump() for m in new_knockout_matches], "updatedAt": tournament.updatedAt}}
     await tournaments_collection.update_one({"_id": tournament_id}, update_data)
     updated_tournament_data = await tournaments_collection.find_one({"_id": tournament_id})
-    # --- CORRECTION DE LA FAUTE DE FRAPPE ---
     updated_tournament_data["_id"] = str(updated_tournament_data["_id"])
     return Tournament(**updated_tournament_data)
 
