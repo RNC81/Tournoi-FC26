@@ -218,7 +218,7 @@ def determine_qualifiers_logic(groups: List[Group], total_players: int) -> List[
     """
     
     # 1. Déterminer la cible de qualifiés
-    if total_players <= 8: 
+if total_players <= 8: 
          targetQualified = 4
     elif total_players <= 16: 
          targetQualified = 8
@@ -226,40 +226,52 @@ def determine_qualifiers_logic(groups: List[Group], total_players: int) -> List[
          targetQualified = 16 if total_players >= 24 else 8 
     
     num_groups = len(groups)
-    
-    # 2. Calculer combien de joueurs prendre "automatiquement" par poule
-    base_qualifiers_per_group = math.floor(targetQualified / num_groups) 
-    
     qualified = []
-    best_finishers_pool = [] # Pool pour les "meilleurs suivants"
 
-    logging.info(f"Qualification: {total_players} joueurs, {num_groups} poules. Cible: {targetQualified} qualifiés.")
-    logging.info(f"Mode de qualification: Top {base_qualifiers_per_group} + meilleurs suivants.")
+    logging.info(f"Début Qualification: {total_players} joueurs, {num_groups} poules. Cible: {targetQualified} qualifiés.")
 
-    for group in groups:
-        # S'assurer que les stats sont à jour et triées
-        sorted_players_in_group = update_group_standings_logic(group)
-        group.players = sorted_players_in_group 
-
-        # 3. Prendre les 'base' qualifiés
-        for i, player in enumerate(sorted_players_in_group):
-            if i < base_qualifiers_per_group:
-                qualified.append(player.name)
-            else:
-                # Ajouter tous les autres au pool des "meilleurs suivants"
-                best_finishers_pool.append(player) 
-                
-    # 4. Calculer le nombre de places restantes
-    needed = targetQualified - len(qualified)
-
-    if needed > 0 and best_finishers_pool:
-        # 5. Trier le pool des "meilleurs suivants"
-        best_finishers_pool.sort(key=lambda p: (p.points, p.goalDiff, p.goalsFor), reverse=True)
+    # --- L'ALGO "VERIFICATEUR" ---
+    # 2. Vérifier si une qualification "propre" est possible
+    if targetQualified % num_groups == 0:
+        # CAS 1 : Qualification "propre" (ex: 16 qualifiés / 8 poules = Top 2)
+        qualifiers_per_group = targetQualified // num_groups
+        logging.info(f"Cas 'Propre' détecté. Règle: Top {qualifiers_per_group} de chaque poule.")
         
-        # 6. Ajouter les 'needed' meilleurs
-        qualified.extend(p.name for p in best_finishers_pool[:needed])
+        for group in groups:
+            sorted_players_in_group = update_group_standings_logic(group)
+            group.players = sorted_players_in_group
+            
+            for i, player in enumerate(sorted_players_in_group):
+                if i < qualifiers_per_group:
+                    qualified.append(player.name)
+    
+    else:
+        # CAS 2 : Qualification "complexe" (ex: 16 qualifiés / 9 poules)
+        # On utilise la méthode "Top X + Y meilleurs suivants"
+        logging.info(f"Cas 'Complexe' détecté. Règle: Meilleurs suivants.")
+        
+        base_qualifiers_per_group = math.floor(targetQualified / num_groups)
+        best_finishers_pool = []
 
-    # 7. S'assurer qu'on ne dépasse pas (sécurité)
+        logging.info(f"Mode de qualification: Top {base_qualifiers_per_group} + meilleurs suivants.")
+
+        for group in groups:
+            sorted_players_in_group = update_group_standings_logic(group)
+            group.players = sorted_players_in_group 
+
+            for i, player in enumerate(sorted_players_in_group):
+                if i < base_qualifiers_per_group:
+                    qualified.append(player.name)
+                else:
+                    best_finishers_pool.append(player) 
+                    
+        needed = targetQualified - len(qualified)
+
+        if needed > 0 and best_finishers_pool:
+            best_finishers_pool.sort(key=lambda p: (p.points, p.goalDiff, p.goalsFor), reverse=True)
+            qualified.extend(p.name for p in best_finishers_pool[:needed])
+
+    # 3. Sécurité finale
     logging.info(f"Total qualifiés générés: {len(qualified)}")
     return qualified[:targetQualified]
 
