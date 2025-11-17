@@ -11,9 +11,12 @@ from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import List, Optional, Dict, Any, Union
 import uuid
 from datetime import datetime, timezone, timedelta
+import random
+import math
+from bson import ObjectId # <-- L'IMPORTATION QUI MANQUAIT
 
 # --- NOUVEAU : Imports pour l'authentification ---
-from passlib.context import CryptContext # <-- L'IMPORTATION QUI MANQUAIT
+from passlib.context import CryptContext
 from jose import JWTError, jwt
 # --- FIN NOUVEAU ---
 
@@ -30,7 +33,7 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 # 24 heures
 
 # --- NOUVEAU : Configuration Passlib ---
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto") # <-- LIGNE 36 (anciennement 31)
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 # --- FIN NOUVEAU ---
 
@@ -107,7 +110,7 @@ class Tournament(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
         arbitrary_types_allowed=True,
-        json_encoders={ObjectId: str, datetime: lambda dt: dt.isoformat()}
+        json_encoders={ObjectId: str, datetime: lambda dt: dt.isoformat()} # <-- ObjectId est maintenant défini
     )
 
 class TournamentCreateRequest(BaseModel):
