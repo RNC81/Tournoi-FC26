@@ -400,62 +400,60 @@ def generate_knockout_matches_logic(qualified_player_names: List[str]) -> List[K
 
 # --- Routes API (Tournoi) ---
 
-# --- NOUVELLE ROUTE : Obtenir "Mes Tournois" ---
-@api_router.get("/tournaments/my-tournaments", response_model=List[Tournament])
-async def get_my_tournaments(current_user: UserInDB = Depends(get_current_user)):
-    """
-    Récupère tous les tournois appartenant à l'utilisateur actuellement connecté.
-    """
-    logging.info(f"Récupération des tournois pour l'utilisateur: {current_user.username}")
-    
-    # Trie du plus récent au plus ancien
-    tournaments = await tournaments_collection.find(
-        {"owner_username": current_user.username},
-        sort=[("createdAt", -1)]
-    ).to_list(1000) # Limite à 1000 tournois
-    
-    # Correction de l'_id pour chaque tournoi
-    for t in tournaments:
-        t["_id"] = str(t["_id"])
-        
-    return tournaments
-# --- FIN NOUVELLE ROUTE ---
-
-
 @api_router.post("/tournament", response_model=Tournament, status_code=201)
 async def create_tournament(
     request: TournamentCreateRequest, 
     current_user: UserInDB = Depends(get_current_user)
 ): 
-    # (Route inchangée)
     player_names = request.playerNames
     if len(set(player_names)) != len(player_names):
         raise HTTPException(status_code=400, detail="Les noms des joueurs doivent être uniques")
+    
     generated_groups = create_groups_logic(player_names, request.numGroups)
+    
     new_tournament = Tournament(
         name=request.tournamentName or f"Tournoi du {datetime.now(timezone.utc).strftime('%d/%m/%Y')}",
         players=player_names,
         currentStep="groups",
         groups=generated_groups,
-        owner_username=current_user.username 
+        owner_username=current_user.username
     )
+    
     tournament_dict = new_tournament.model_dump(by_alias=True)
     tournament_dict["createdAt"] = new_tournament.createdAt
     tournament_dict["updatedAt"] = new_tournament.updatedAt
+    
     inserted_result = await tournaments_collection.insert_one(tournament_dict)
     created_tournament = await tournaments_collection.find_one({"_id": inserted_result.inserted_id})
+    
     if created_tournament and "_id" in created_tournament:
         created_tournament["_id"] = str(created_tournament["_id"])
+        
     return Tournament(**created_tournament)
 
-@api_router.get("/tournament/active", response_model=Tournament)
-async def get_active_tournament():
-    tournament = await tournaments_collection.find_one({}, sort=[("createdAt", -1)])
-    if tournament:
-        tournament["_id"] = str(tournament["_id"])
-        return Tournament(**tournament)
-    raise HTTPException(status_code=404, detail="Aucun tournoi actif trouvé")
-    
+@api_router.get("/tournaments/my-tournaments", response_model=List[Tournament])
+async def get_my_tournaments(current_user: UserInDB = Depends(get_current_user)):
+    """ Récupère tous les tournois de l'utilisateur connecté. """
+    logging.info(f"Récupération des tournois pour l'utilisateur: {current_user.username}")
+    tournaments = await tournaments_collection.find(
+        {"owner_username": current_user.username},
+        sort=[("createdAt", -1)]
+    ).to_list(1000)
+    for t in tournaments:
+        t["_id"] = str(t["_id"])
+    return tournaments
+
+@api_router.get("/tournaments/public", response_model=List[Tournament])
+async def get_public_tournaments():
+    """ Récupère la liste publique des tournois. """
+    tournaments = await tournaments_collection.find(
+        {}, 
+        sort=[("createdAt", -1)]
+    ).limit(20).to_list(20)
+    for t in tournaments:
+        t["_id"] = str(t["_id"])
+    return tournaments
+
 @api_router.get("/tournament/{tournament_id}", response_model=Tournament)
 async def get_tournament(tournament_id: str):
     tournament = await tournaments_collection.find_one({"_id": tournament_id})
@@ -472,7 +470,6 @@ async def draw_groups(tournament_id: str):
     tournament_data["_id"] = str(tournament_data["_id"])
     return Tournament(**tournament_data)
 
-# NOTE: Cette route devra aussi être protégée à l'étape 6
 @api_router.post("/tournament/{tournament_id}/match/{match_id}/score", response_model=Tournament)
 async def update_match_score(tournament_id: str, match_id: str, scores: ScoreUpdateRequest):
     tournament_data = await tournaments_collection.find_one({"_id": tournament_id})
@@ -590,7 +587,6 @@ async def update_match_score(tournament_id: str, match_id: str, scores: ScoreUpd
     updated_tournament_data["_id"] = str(updated_tournament_data["_id"])
     return Tournament(**updated_tournament_data)
 
-# NOTE: Cette route devra aussi être protégée à l'étape 6
 @api_router.post("/tournament/{tournament_id}/complete_groups", response_model=Tournament)
 async def complete_groups_and_draw_knockout(tournament_id: str):
     tournament_data = await tournaments_collection.find_one({"_id": tournament_id})
@@ -623,7 +619,6 @@ async def complete_groups_and_draw_knockout(tournament_id: str):
     updated_tournament_data["_id"] = str(updated_tournament_data["_id"])
     return Tournament(**updated_tournament_data)
 
-# NOTE: Cette route devra aussi être protégée à l'étape 6
 @api_router.post("/tournament/{tournament_id}/redraw_knockout", response_model=Tournament)
 async def redraw_knockout_bracket(tournament_id: str):
     tournament_data = await tournaments_collection.find_one({"_id": tournament_id})
@@ -672,12 +667,11 @@ async def get_status_checks():
 
 # --- Inclusion du Router et Middleware CORS ---
 app.include_router(api_router)
-app.include_router(auth_router) # Inclusion du router d'auth
+app.include_router(auth_router) 
 
-# !! BLOC CORS TRÈS IMPORTANT !!
 origins = [
-    "https://tournoi-fc26-1.onrender.com",  # L'URL exacte de VOTRE FRONTEND
-    "http://localhost:3000",             # Pour vos tests en local
+    "https://tournoi-fc26-1.onrender.com", 
+    "http://localhost:3000",            
 ]
 
 app.add_middleware(
@@ -709,4 +703,4 @@ async def shutdown_db_client():
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
-    uvicorn.run("server:app", host="0.0.0.0", port=port, reload=True)
+    uvicorn.run("server:app", host="0.0.0.0", port=port, reload=True))

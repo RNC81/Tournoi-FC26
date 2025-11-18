@@ -13,25 +13,30 @@ const apiClient = axios.create({
   timeout: 30000, 
 });
 
-// --- NOUVEAU : Intercepteur ---
-// Gère les erreurs 401 (Token expiré / Non autorisé)
 apiClient.interceptors.response.use(
-  (response) => response, // Renvoie la réponse si tout va bien
+  (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      // Si 401, le token est invalide
-      // On force la déconnexion en supprimant le token du localStorage
       localStorage.removeItem('authToken');
-      // On recharge la page pour forcer le retour à l'écran de login
       window.location.href = '/login'; 
     }
     return Promise.reject(error);
   }
 );
-// --- FIN NOUVEAU ---
 
+// --- Fonctions d'API ---
 
-// ... (Toutes vos fonctions 'createTournament', 'getTournament', etc., restent INCHANGÉES) ...
+// --- NOUVELLE FONCTION ---
+export const getPublicTournaments = async () => {
+  try {
+    const response = await apiClient.get('/api/tournaments/public');
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching public tournaments:", error.response?.data || error.message);
+    throw error;
+  }
+};
+// --- FIN NOUVELLE FONCTION ---
 
 export const createTournament = async (playerNames, numGroups) => {
   try {
@@ -43,30 +48,6 @@ export const createTournament = async (playerNames, numGroups) => {
   }
 };
 
-export const getTournament = async (tournamentId) => {
-  try {
-    const url = tournamentId === 'active'
-      ? '/api/tournament/active'
-      : `/api/tournament/${tournamentId}`;
-    console.log(`Fetching tournament with ID/Alias: ${tournamentId} (URL: ${url})`);
-    const response = await apiClient.get(url);
-    console.log("Tournament data received:", response.data);
-    return response.data;
-  } catch (error) {
-     if (error.response?.status === 404) {
-       console.warn(`Tournament ${tournamentId} not found.`);
-       return null; 
-     }
-    console.error("Error fetching tournament:", error.response?.data || error.message);
-    throw error;
-  }
-};
-
-// --- NOUVELLE FONCTION ---
-/**
- * Récupère tous les tournois de l'utilisateur connecté.
- * @returns {Promise<Array<object>>} Une liste de tournois.
- */
 export const getMyTournaments = async () => {
   try {
     const response = await apiClient.get('/api/tournaments/my-tournaments');
@@ -76,14 +57,26 @@ export const getMyTournaments = async () => {
     throw error;
   }
 };
-// --- FIN NOUVELLE FONCTION ---
 
-export const drawGroups = async (tournamentId) => {
+export const getTournament = async (tournamentId) => {
   try {
-    const response = await apiClient.post(`/api/tournament/${tournamentId}/draw_groups`);
+    // --- CORRECTION ---
+    // On ne gère plus 'active', car la route a été supprimée.
+    // Si on reçoit 'active' par erreur, on renvoie null ou on loggue une erreur.
+    if (tournamentId === 'active') {
+        console.warn("getTournament called with 'active', which is deprecated.");
+        return null;
+    }
+      
+    const response = await apiClient.get(`/api/tournament/${tournamentId}`);
+    console.log("Tournament data received:", response.data);
     return response.data;
   } catch (error) {
-    console.error("Error drawing groups:", error.response?.data || error.message);
+     if (error.response?.status === 404) {
+       console.warn(`Tournament ${tournamentId} not found.`);
+       return null; 
+     }
+    console.error("Error fetching tournament:", error.response?.data || error.message);
     throw error;
   }
 };
@@ -114,6 +107,17 @@ export const redrawKnockout = async (tournamentId) => {
     return response.data;
   } catch (error) {
     console.error("Error redrawing knockout:", error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// drawGroups est obsolète
+export const drawGroups = async (tournamentId) => {
+  try {
+    const response = await apiClient.post(`/api/tournament/${tournamentId}/draw_groups`);
+    return response.data;
+  } catch (error) {
+    console.error("Error drawing groups:", error.response?.data || error.message);
     throw error;
   }
 };
