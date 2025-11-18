@@ -104,7 +104,7 @@ class Tournament(BaseModel):
     currentStep: str = "config"
     createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    owner_username: str # <-- NOUVEAU CHAMP REQUIS
+    owner_username: Optional[str] = "Ancien Admin" # <-- NOUVEAU CHAMP REQUIS
 
     model_config = ConfigDict(
         populate_by_name=True,
