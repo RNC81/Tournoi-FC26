@@ -13,18 +13,18 @@ import uuid
 from datetime import datetime, timezone, timedelta
 import random
 import math
-from bson import ObjectId # <-- L'IMPORTATION QUI MANQUAIT
+from bson import ObjectId # <-- Correction des imports
 
-# --- NOUVEAU : Imports pour l'authentification ---
+# --- Imports pour l'authentification ---
 from passlib.context import CryptContext
 from jose import JWTError, jwt
-# --- FIN NOUVEAU ---
+# --- FIN Imports ---
 
 # --- Configuration initiale ---
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# --- NOUVEAU : Constantes d'authentification ---
+# --- Constantes d'authentification ---
 SECRET_KEY = os.environ.get("SECRET_KEY")
 if not SECRET_KEY:
     logging.warning("SECRET_KEY non définie, utilisation d'une clé par défaut (NON SÉCURISÉE)")
@@ -32,10 +32,9 @@ if not SECRET_KEY:
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 # 24 heures
 
-# --- NOUVEAU : Configuration Passlib ---
+# --- Configuration Passlib ---
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
-# --- FIN NOUVEAU ---
 
 
 # --- Connexion MongoDB ---
@@ -48,12 +47,12 @@ if not mongo_url:
 client = AsyncIOMotorClient(mongo_url)
 db = client[db_name]
 tournaments_collection = db["tournaments"]
-users_collection = db["users"] # --- NOUVEAU : Collection utilisateurs ---
+users_collection = db["users"] # Collection utilisateurs
 
 # --- FastAPI App et Routers ---
 app = FastAPI(title="Tournament API")
 api_router = APIRouter(prefix="/api")
-auth_router = APIRouter(prefix="/api/auth") # --- NOUVEAU : Router pour l'auth ---
+auth_router = APIRouter(prefix="/api/auth")
 
 # --- Modèles Pydantic (Tournoi) ---
 
@@ -105,12 +104,12 @@ class Tournament(BaseModel):
     currentStep: str = "config"
     createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    # owner_id: str # On ajoutera ça à l'étape 2
+    owner_username: str # <-- NOUVEAU CHAMP REQUIS
 
     model_config = ConfigDict(
         populate_by_name=True,
         arbitrary_types_allowed=True,
-        json_encoders={ObjectId: str, datetime: lambda dt: dt.isoformat()} # <-- ObjectId est maintenant défini
+        json_encoders={ObjectId: str, datetime: lambda dt: dt.isoformat()}
     )
 
 class TournamentCreateRequest(BaseModel):
@@ -182,8 +181,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 async def get_user_from_db(username: str):
     user = await users_collection.find_one({"username": username})
     if user:
-        # --- CORRECTION DE LA FAUTE DE FRAPPE ---
-        user["_id"] = str(user["_id"]) # CORRECT
+        user["_id"] = str(user["_id"]) # Correction du bug ObjectId
         return UserInDB(**user)
     return None
 
@@ -401,27 +399,39 @@ def generate_knockout_matches_logic(qualified_player_names: List[str]) -> List[K
     return matches
 
 # --- Routes API (Tournoi) ---
-# Note : Celles-ci devront être protégées à l'étape 2
 
 @api_router.post("/tournament", response_model=Tournament, status_code=201)
-async def create_tournament(request: TournamentCreateRequest): 
+async def create_tournament(
+    request: TournamentCreateRequest, 
+    current_user: UserInDB = Depends(get_current_user) # <-- ROUTE PROTÉGÉE
+): 
+    """
+    Crée un nouveau tournoi. L'utilisateur doit être authentifié.
+    """
     player_names = request.playerNames
     if len(set(player_names)) != len(player_names):
         raise HTTPException(status_code=400, detail="Les noms des joueurs doivent être uniques")
+    
     generated_groups = create_groups_logic(player_names, request.numGroups)
+    
     new_tournament = Tournament(
         name=request.tournamentName or f"Tournoi du {datetime.now(timezone.utc).strftime('%d/%m/%Y')}",
         players=player_names,
         currentStep="groups",
-        groups=generated_groups
+        groups=generated_groups,
+        owner_username=current_user.username # <-- PROPRIÉTAIRE ENREGISTRÉ
     )
+    
     tournament_dict = new_tournament.model_dump(by_alias=True)
     tournament_dict["createdAt"] = new_tournament.createdAt
     tournament_dict["updatedAt"] = new_tournament.updatedAt
+    
     inserted_result = await tournaments_collection.insert_one(tournament_dict)
     created_tournament = await tournaments_collection.find_one({"_id": inserted_result.inserted_id})
+    
     if created_tournament and "_id" in created_tournament:
         created_tournament["_id"] = str(created_tournament["_id"])
+        
     return Tournament(**created_tournament)
 
 @api_router.get("/tournament/active", response_model=Tournament)
@@ -448,6 +458,7 @@ async def draw_groups(tournament_id: str):
     tournament_data["_id"] = str(tournament_data["_id"])
     return Tournament(**tournament_data)
 
+# NOTE: Cette route devra aussi être protégée à l'étape 6
 @api_router.post("/tournament/{tournament_id}/match/{match_id}/score", response_model=Tournament)
 async def update_match_score(tournament_id: str, match_id: str, scores: ScoreUpdateRequest):
     tournament_data = await tournaments_collection.find_one({"_id": tournament_id})
@@ -565,6 +576,7 @@ async def update_match_score(tournament_id: str, match_id: str, scores: ScoreUpd
     updated_tournament_data["_id"] = str(updated_tournament_data["_id"])
     return Tournament(**updated_tournament_data)
 
+# NOTE: Cette route devra aussi être protégée à l'étape 6
 @api_router.post("/tournament/{tournament_id}/complete_groups", response_model=Tournament)
 async def complete_groups_and_draw_knockout(tournament_id: str):
     tournament_data = await tournaments_collection.find_one({"_id": tournament_id})
@@ -597,6 +609,7 @@ async def complete_groups_and_draw_knockout(tournament_id: str):
     updated_tournament_data["_id"] = str(updated_tournament_data["_id"])
     return Tournament(**updated_tournament_data)
 
+# NOTE: Cette route devra aussi être protégée à l'étape 6
 @api_router.post("/tournament/{tournament_id}/redraw_knockout", response_model=Tournament)
 async def redraw_knockout_bracket(tournament_id: str):
     tournament_data = await tournaments_collection.find_one({"_id": tournament_id})
