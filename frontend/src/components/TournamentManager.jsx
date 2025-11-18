@@ -1,13 +1,13 @@
 /* Fichier: frontend/src/components/TournamentManager.jsx */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react'; // Ajout de useRef
 import { useParams } from 'react-router-dom';
 import Step1Registration from './Step1Registration';
 import Step2GroupStage from './Step2GroupStage';
 import Step3Qualification from './Step3Qualification';
 import Step4Bracket from './Step4Bracket';
-import { Trophy, Loader2, Check, ShieldOff, LogOut, Users, Trash2 } from 'lucide-react'; // Ajout Trash2
+import { Trophy, Loader2, Check, ShieldOff, LogOut, Users, Trash2 } from 'lucide-react'; 
 import { useToast } from '../hooks/use-toast';
-import { getTournament, deleteTournament } from '../api'; // Ajout deleteTournament
+import { getTournament, deleteTournament } from '../api'; 
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +21,9 @@ import {
 } from './ui/alert-dialog'; 
 import { Button } from './ui/button'; 
 
+const TOURNAMENT_ID_LS_KEY = 'currentTournamentId';
+const ADMIN_STATUS_LS_KEY = 'isAdmin'; 
+
 const TournamentManager = ({ isAdmin, initialData }) => { 
   const [tournamentId, setTournamentId] = useState(initialData?._id || initialData?.id || null);
   const [currentStep, setCurrentStep] = useState("loading"); 
@@ -32,13 +35,13 @@ const TournamentManager = ({ isAdmin, initialData }) => {
   const [winner, setWinner] = useState(null);
   const [thirdPlace, setThirdPlace] = useState(null); 
   const [isLoading, setIsLoading] = useState(!initialData); 
-  
-  // NOUVEAU : Pour gérer l'état "en cours de suppression"
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  // Pour détecter les changements d'étape et notifier
+  const prevStepRef = useRef(currentStep);
 
   const { toast } = useToast();
 
-  // ... (updateFullTournamentState INCHANGÉ) ...
   const updateFullTournamentState = useCallback((data) => {
     if (!data) {
         console.warn("Attempted to update state with null data.");
@@ -47,13 +50,29 @@ const TournamentManager = ({ isAdmin, initialData }) => {
         return;
     }
     
-    if (data.currentStep !== currentStep || data.winner !== winner) {
+    const newStep = data.currentStep || "config";
+    
+    // --- NOUVEAU : Notification de changement d'étape ---
+    if (prevStepRef.current !== newStep && prevStepRef.current !== "loading") {
+        // Si on passe des groupes à la suite
+        if (prevStepRef.current === "groups" && (newStep === "qualified" || newStep === "knockout")) {
+            toast({ title: "Mise à jour !", description: "La phase de poules est terminée. Place à la suite !", duration: 5000 });
+        }
+        // Si on a un vainqueur
+        if (data.winner && !winner) {
+             toast({ title: "Tournoi terminé !", description: `Félicitations à ${data.winner} !`, duration: 5000 });
+        }
+    }
+    prevStepRef.current = newStep; // Mémorise l'étape
+    // ----------------------------------------------------
+
+    if (newStep !== currentStep || data.winner !== winner) {
        console.log("Updating full state from API data:", data);
     }
 
     const tId = data._id || data.id;
     setTournamentId(tId); 
-    setCurrentStep(data.currentStep || "config");
+    setCurrentStep(newStep);
     setPlayers(data.players || []);
     setGroups(data.groups || []);
 
@@ -84,10 +103,10 @@ const TournamentManager = ({ isAdmin, initialData }) => {
     setThirdPlace(data.thirdPlace || null); 
     
     setIsLoading(false); 
-  }, [currentStep, winner]); 
+  }, [currentStep, winner, toast]); // toast ajouté aux dépendances
 
 
-  // ... (useEffect de chargement et polling INCHANGÉS) ...
+  // 1. CHARGEMENT INITIAL
   useEffect(() => {
     if (initialData) {
         updateFullTournamentState(initialData);
@@ -109,24 +128,29 @@ const TournamentManager = ({ isAdmin, initialData }) => {
     }
   }, [initialData, tournamentId, updateFullTournamentState]);
 
+  // 2. POLLING (Rafraîchissement Auto)
   useEffect(() => {
     if (isAdmin || !tournamentId) {
       return;
     }
+
+    // --- MODIFICATION : Intervalle réduit à 5000ms (5 secondes) ---
     const intervalId = setInterval(async () => {
+      // console.log(`Spectator: Polling tournament ${tournamentId}...`); // Commenté pour moins de logs
       try {
         const data = await getTournament(tournamentId);
-        if (data) updateFullTournamentState(data);
-        else setCurrentStep('no_tournament'); // Si supprimé entre temps
+        if (data) {
+          updateFullTournamentState(data);
+        }
       } catch (error) {
-        // 404 sera attrapé ici dans api.js et renverra null, donc géré au-dessus
+        // Ignorer les erreurs de polling
       }
-    }, 15000); 
+    }, 5000); // 5 secondes pour plus de réactivité
+
     return () => clearInterval(intervalId);
   }, [isAdmin, tournamentId, updateFullTournamentState]);
 
 
-  // ... (Handlers standards INCHANGÉS) ...
   const handleTournamentCreated = (tournamentData) => { updateFullTournamentState(tournamentData); };
   const handleGroupsDrawn = (tournamentData) => { updateFullTournamentState(tournamentData); };
   const handleScoreUpdated = (tournamentData) => { updateFullTournamentState(tournamentData); };
@@ -134,7 +158,6 @@ const TournamentManager = ({ isAdmin, initialData }) => {
   const handleKnockoutUpdated = (tournamentData) => { updateFullTournamentState(tournamentData); };
   const handleTournamentFinished = (tournamentData) => { updateFullTournamentState(tournamentData); };
 
-  // --- MODIFIÉ : SUPPRESSION AU LIEU DE RESET ---
   const handleDeleteTournament = async () => {
         if (!isAdmin || !tournamentId) return; 
         
@@ -142,15 +165,24 @@ const TournamentManager = ({ isAdmin, initialData }) => {
         try {
             await deleteTournament(tournamentId);
             toast({ title: "Tournoi supprimé.", description: "Redirection vers le tableau de bord..." });
-            // Redirection immédiate vers le dashboard pour éviter le 404
             window.location.href = '/dashboard';
         } catch (error) {
             toast({ title: "Erreur", description: "Impossible de supprimer le tournoi.", variant: "destructive" });
             setIsDeleting(false);
         }
   };
+  
+  // (handleResetTournament supprimé car remplacé par delete)
+  const handleResetTournament = () => { /* Legacy placeholder if needed */ };
 
-  if (isLoading || isDeleting) { // Loader si suppression en cours
+  const handleAdminLogout = () => {
+      localStorage.removeItem(ADMIN_STATUS_LS_KEY);
+      localStorage.removeItem('authToken');
+      window.location.href = '/'; 
+  };
+
+
+  if (isLoading || isDeleting) {
       return (
           <div className="flex justify-center items-center min-h-screen">
               <Loader2 className="h-16 w-16 animate-spin text-cyan-400" />
@@ -172,7 +204,6 @@ const TournamentManager = ({ isAdmin, initialData }) => {
        );
   }
 
-  // Rendu conditionnel (inchangé)
   const renderStep = () => {
     switch (currentStep) {
       case 'config':
@@ -192,7 +223,6 @@ const TournamentManager = ({ isAdmin, initialData }) => {
   return (
     <div className="min-h-screen w-full py-8 px-4">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
         <div className="text-center mb-12 fade-in flex flex-col sm:flex-row justify-center items-center gap-6">
              <div className="flex items-center justify-center gap-3 flex-grow">
                  <Trophy className="w-8 h-8 sm:w-12 sm:h-12 text-cyan-400" />
@@ -204,7 +234,6 @@ const TournamentManager = ({ isAdmin, initialData }) => {
 
              {isAdmin && (
                 <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto sm:ml-auto">
-                    {/* Bouton SUPPRIMER (au lieu de Réinitialiser) */}
                     {currentStep !== 'config' && (
                          <AlertDialog>
                          <AlertDialogTrigger asChild>
@@ -221,7 +250,6 @@ const TournamentManager = ({ isAdmin, initialData }) => {
                              <AlertDialogTitle className="text-xl text-white">Supprimer le tournoi ?</AlertDialogTitle>
                              <AlertDialogDescription className="text-gray-400">
                                Cette action est <strong>définitive</strong>. Toutes les données de ce tournoi seront perdues.
-                               Vous serez redirigé vers votre tableau de bord.
                              </AlertDialogDescription>
                            </AlertDialogHeader>
                            <AlertDialogFooter>
@@ -251,7 +279,6 @@ const TournamentManager = ({ isAdmin, initialData }) => {
              )}
         </div>
          
-        {/* Indicateur d'étape */}
        <div className="flex flex-col sm:flex-row justify-center items-center sm:items-start gap-4 mb-16"> 
            {[
              { num: 1, name: 'Config', stepKey: 'config' },
