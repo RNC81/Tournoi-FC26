@@ -1,3 +1,4 @@
+// Fichier: frontend/src/App.js
 import './App.css';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from './components/ui/toaster';
@@ -9,13 +10,16 @@ import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import PublicListPage from './pages/PublicListPage';
 import TournamentPage from './pages/TournamentPage';
-import CreateTournamentPage from './pages/CreateTournamentPage'; // <-- C'EST L'IMPORT QUI MANQUAIT
+import CreateTournamentPage from './pages/CreateTournamentPage'; // <-- ASSUREZ-VOUS QUE CETTE LIGNE EST PRÉSENTE
 
 // Un composant simple pour protéger les routes
 const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth();
-  
-  if (loading) return null; // Attendre que l'auth soit chargée
+  const { isAuthenticated, loading } = useAuth(); // Ajout de 'loading'
+
+  // Attendre que l'authentification soit vérifiée au démarrage
+  if (loading) {
+    return null; // Affiche une page blanche (ou un loader) pendant la vérification
+  }
 
   if (!isAuthenticated) {
     // Redirige vers la page de connexion
