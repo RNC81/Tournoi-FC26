@@ -13,10 +13,10 @@ import uuid
 from datetime import datetime, timezone, timedelta
 import random
 import math
-from bson import ObjectId # <-- Correction Import
+from bson import ObjectId # <-- Correction des imports
 
 # --- Imports pour l'authentification ---
-from passlib.context import CryptContext # <-- Correction Import
+from passlib.context import CryptContext
 from jose import JWTError, jwt
 # --- FIN Imports ---
 
@@ -109,7 +109,7 @@ class Tournament(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
         arbitrary_types_allowed=True,
-        json_encoders={ObjectId: str, datetime: lambda dt: dt.isoformat()} # <-- ObjectId est maintenant défini
+        json_encoders={ObjectId: str, datetime: lambda dt: dt.isoformat()}
     )
 
 class TournamentCreateRequest(BaseModel):
@@ -405,10 +405,15 @@ async def create_tournament(
     request: TournamentCreateRequest, 
     current_user: UserInDB = Depends(get_current_user) # <-- ROUTE PROTÉGÉE
 ): 
+    """
+    Crée un nouveau tournoi. L'utilisateur doit être authentifié.
+    """
     player_names = request.playerNames
     if len(set(player_names)) != len(player_names):
         raise HTTPException(status_code=400, detail="Les noms des joueurs doivent être uniques")
+    
     generated_groups = create_groups_logic(player_names, request.numGroups)
+    
     new_tournament = Tournament(
         name=request.tournamentName or f"Tournoi du {datetime.now(timezone.utc).strftime('%d/%m/%Y')}",
         players=player_names,
@@ -416,13 +421,17 @@ async def create_tournament(
         groups=generated_groups,
         owner_username=current_user.username # <-- PROPRIÉTAIRE ENREGISTRÉ
     )
+    
     tournament_dict = new_tournament.model_dump(by_alias=True)
     tournament_dict["createdAt"] = new_tournament.createdAt
     tournament_dict["updatedAt"] = new_tournament.updatedAt
+    
     inserted_result = await tournaments_collection.insert_one(tournament_dict)
     created_tournament = await tournaments_collection.find_one({"_id": inserted_result.inserted_id})
+    
     if created_tournament and "_id" in created_tournament:
         created_tournament["_id"] = str(created_tournament["_id"])
+        
     return Tournament(**created_tournament)
 
 @api_router.get("/tournament/active", response_model=Tournament)
@@ -449,6 +458,7 @@ async def draw_groups(tournament_id: str):
     tournament_data["_id"] = str(tournament_data["_id"])
     return Tournament(**tournament_data)
 
+# NOTE: Cette route devra aussi être protégée à l'étape 6
 @api_router.post("/tournament/{tournament_id}/match/{match_id}/score", response_model=Tournament)
 async def update_match_score(tournament_id: str, match_id: str, scores: ScoreUpdateRequest):
     tournament_data = await tournaments_collection.find_one({"_id": tournament_id})
@@ -566,6 +576,7 @@ async def update_match_score(tournament_id: str, match_id: str, scores: ScoreUpd
     updated_tournament_data["_id"] = str(updated_tournament_data["_id"])
     return Tournament(**updated_tournament_data)
 
+# NOTE: Cette route devra aussi être protégée à l'étape 6
 @api_router.post("/tournament/{tournament_id}/complete_groups", response_model=Tournament)
 async def complete_groups_and_draw_knockout(tournament_id: str):
     tournament_data = await tournaments_collection.find_one({"_id": tournament_id})
@@ -598,6 +609,7 @@ async def complete_groups_and_draw_knockout(tournament_id: str):
     updated_tournament_data["_id"] = str(updated_tournament_data["_id"])
     return Tournament(**updated_tournament_data)
 
+# NOTE: Cette route devra aussi être protégée à l'étape 6
 @api_router.post("/tournament/{tournament_id}/redraw_knockout", response_model=Tournament)
 async def redraw_knockout_bracket(tournament_id: str):
     tournament_data = await tournaments_collection.find_one({"_id": tournament_id})
@@ -648,7 +660,7 @@ async def get_status_checks():
 app.include_router(api_router)
 app.include_router(auth_router) # Inclusion du router d'auth
 
-# !! BLOC CORS TRÈS IMPORTANT !! (CORRIGÉ)
+# !! BLOC CORS TRÈS IMPORTANT !!
 origins = [
     "https://tournoi-fc26-1.onrender.com",  # L'URL exacte de VOTRE FRONTEND
     "http://localhost:3000",             # Pour vos tests en local
