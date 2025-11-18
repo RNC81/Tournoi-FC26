@@ -1,6 +1,6 @@
-/* Modification de frontend/src/components/Step4Bracket.jsx */
+/* Fichier: frontend/src/components/Step4Bracket.jsx */
 import { useState, useEffect } from 'react';
-import { Trophy, Edit, Crown, Loader2, Lock, Shuffle } from 'lucide-react'; // Ajout Lock
+import { Trophy, Edit, Crown, Loader2, Lock, Shuffle } from 'lucide-react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
 import { Input } from './ui/input';
@@ -8,7 +8,6 @@ import { Label } from './ui/label';
 import { useToast } from '../hooks/use-toast';
 import { updateScore, redrawKnockout } from '../api';
 
-// Ajout de isAdmin en prop
 const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, onFinish, groups, thirdPlace, isAdmin }) => {
   const [matches, setMatches] = useState(knockoutMatches || []);
   const [selectedMatch, setSelectedMatch] = useState(null);
@@ -18,7 +17,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
   const [champion, setChampion] = useState(winner);
   const [thirdPlaceWinner, setThirdPlaceWinner] = useState(thirdPlace);
   const [isSavingScore, setIsSavingScore] = useState(false);
-  const [isRedrawing, setIsRedrawing] = useState(false); // Nouvel état pour le re-tirage
+  const [isRedrawing, setIsRedrawing] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -33,26 +32,22 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
     setThirdPlaceWinner(thirdPlace);
   }, [thirdPlace]);
 
-  // Calcule totalRounds (inchangé)
-  const mainBracketMatches = matches.filter(m => m && !m.id.startsWith("match_third_place_")); 
-  const maxRound = mainBracketMatches.length > 0 ? Math.max(0, ...mainBracketMatches.map((m) => m ? m.round : -1)) : -1; 
+  // Calculs pour l'affichage du bracket
+  const mainBracketMatches = matches.filter(m => m && !m.id.startsWith("match_third_place_"));
+  const maxRound = mainBracketMatches.length > 0 ? Math.max(0, ...mainBracketMatches.map((m) => m ? m.round : -1)) : -1;
   const totalRounds = maxRound >= 0 ? maxRound + 1 : 0;
   
-  // Définition de isFinalOrThirdPlace (inchangé)
   const isFinalOrThirdPlace = selectedMatch?.id?.startsWith("match_third_place_") || selectedMatch?.round === (totalRounds - 1);
 
   const handleMatchClick = (match) => {
-    // VERROUILLAGE si !isAdmin
     if (!isAdmin) {
-        toast({ title: 'Mode Spectateur', description: 'Vous ne pouvez pas modifier les scores.', variant: 'default' });
-        return;
+        return; // Le clic ne fait rien pour le spectateur (pas de toast pour éviter le spam)
     }
       
     if (!match || !match.player1 || !match.player2) { 
       toast({ title: 'Match non prêt', description: 'Les joueurs ne sont pas encore déterminés.', variant: 'destructive' });
       return;
     }
-    // Reste de la logique
     setSelectedMatch(match);
     setScore1(match.score1 !== null && match.score1 !== undefined ? match.score1.toString() : '');
     setScore2(match.score2 !== null && match.score2 !== undefined ? match.score2.toString() : '');
@@ -60,7 +55,6 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
   };
 
   const handleScoreSubmit = async () => {
-    // ... (logique inchangée)
     if (score1 === '' || score2 === '') {
       toast({ title: 'Erreur', description: 'Veuillez entrer les deux scores.', variant: 'destructive' });
       return;
@@ -102,12 +96,8 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
     }
   };
 
-  // --- NOUVELLE FONCTION ---
   const handleRedraw = async () => {
-    // Vérification de sécurité (normalement gérée par l'affichage du bouton, mais bon)
     if (!isAdmin) return; 
-
-    // On vérifie si un match a été joué
     const matchPlayed = matches.some(m => m.played);
     if (matchPlayed) {
         toast({ title: 'Action impossible', description: 'Vous ne pouvez pas relancer le tirage si un match a déjà été joué.', variant: 'destructive' });
@@ -117,31 +107,25 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
     setIsRedrawing(true);
     try {
       const updatedTournament = await redrawKnockout(tournamentId);
-      // onScoreUpdate est parfait car il met à jour tout l'état du tournoi
       onScoreUpdate(updatedTournament); 
       toast({ title: 'Tirage au sort relancé', description: 'Le tableau final a été mélangé.' });
     } catch (error) {
       toast({ title: 'Erreur', description: error.response?.data?.detail || "Impossible de relancer le tirage.", variant: 'destructive' });
-      console.error("Failed to redraw knockout:", error);
     } finally {
       setIsRedrawing(false);
     }
   };
 
   const getRoundName = (round, currentTotalRounds) => {
-    // ... (logique inchangée)
     if (currentTotalRounds === 0) return "Phase Finale";
     const roundsFromEnd = currentTotalRounds - round;
     if (roundsFromEnd === 1) return 'Finale';
     if (roundsFromEnd === 2) return 'Demi-finales';
     if (roundsFromEnd === 3) return 'Quarts de finale';
     if (roundsFromEnd === 4) return '8èmes de finale';
-    if (roundsFromEnd === 5) return '16èmes de finale';
     return `Tour ${round + 1}`;
   };
 
-
-  // Crée les données pour les rounds (inchangé)
   const roundsData = Array.from({ length: totalRounds }).map((_, roundIndex) => ({
     name: getRoundName(roundIndex, totalRounds),
     matches: mainBracketMatches.filter(m => m && m.round === roundIndex) 
@@ -149,14 +133,9 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
 
   const thirdPlaceMatch = matches.find(m => m && m.id.startsWith("match_third_place_")); 
 
-
-  // Fonction pour rendre une carte de match (factorisation)
   const renderMatchCard = (match) => {
     if (!match) return null; 
-
-    // VERROUILLAGE : définit le style de clic
-    const isClickable = isAdmin && match.player1 && match.player2 && !match.winner;
-    const clickHandler = isClickable ? () => handleMatchClick(match) : undefined;
+    const isClickable = isAdmin && match.player1 && match.player2; // On permet le clic même si winner est défini pour corriger
     const cursorStyle = isClickable ? 'cursor-pointer' : 'cursor-default';
     const hoverStyle = isClickable ? 'hover:border-cyan-400/80 hover:shadow-cyan-500/20' : '';
 
@@ -164,48 +143,21 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
       <div
         key={match.id}
         className={`bg-gradient-to-r from-gray-800/80 to-gray-900/60 rounded-xl p-3 shadow-lg border border-gray-700/60 transition-all duration-300 ${cursorStyle} ${hoverStyle}`}
-        onClick={clickHandler}
+        onClick={() => isClickable && handleMatchClick(match)}
       >
         <div className="space-y-2">
-          {/* Joueur 1 (inchangé) */}
-          <div
-            className={`flex justify-between items-center px-3 py-1.5 rounded-md transition-colors duration-200 ${
-              match.winner === match.player1
-                ? 'bg-green-700/40 border border-green-500/70 text-white font-semibold'
-                : match.played ? 'bg-gray-800/40 text-gray-400 opacity-70'
-                : 'bg-gray-700/50 text-gray-100'
-            }`}
-          >
+          <div className={`flex justify-between items-center px-3 py-1.5 rounded-md transition-colors duration-200 ${match.winner === match.player1 ? 'bg-green-700/40 border border-green-500/70 text-white font-semibold' : match.played ? 'bg-gray-800/40 text-gray-400 opacity-70' : 'bg-gray-700/50 text-gray-100'}`}>
             <span className="font-medium truncate">{match.player1 || '...'}</span>
-            {match.played && match.score1 !== null && ( 
-              <span className="text-cyan-400 font-bold">{match.score1}</span>
-            )}
+            {match.played && match.score1 !== null && (<span className="text-cyan-400 font-bold">{match.score1}</span>)}
           </div>
-          {/* Joueur 2 (inchangé) */}
-          <div
-            className={`flex justify-between items-center px-3 py-1.5 rounded-md transition-colors duration-200 ${
-              match.winner === match.player2
-                ? 'bg-green-700/40 border border-green-500/70 text-white font-semibold'
-                : match.played ? 'bg-gray-800/40 text-gray-400 opacity-70'
-                : 'bg-gray-700/50 text-gray-100'
-            }`}
-          >
+          <div className={`flex justify-between items-center px-3 py-1.5 rounded-md transition-colors duration-200 ${match.winner === match.player2 ? 'bg-green-700/40 border border-green-500/70 text-white font-semibold' : match.played ? 'bg-gray-800/40 text-gray-400 opacity-70' : 'bg-gray-700/50 text-gray-100'}`}>
             <span className="font-medium truncate">{match.player2 || '...'}</span>
-            {match.played && match.score2 !== null && ( 
-              <span className="text-cyan-400 font-bold">{match.score2}</span>
-            )}
+            {match.played && match.score2 !== null && (<span className="text-cyan-400 font-bold">{match.score2}</span>)}
           </div>
           
-          {/* VERROUILLAGE : Bouton Score */}
-          {isAdmin && match.player1 && match.player2 && !match.winner && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full mt-1.5 border-gray-600 text-gray-300 hover:bg-gray-700 hover:border-cyan-500 text-xs py-0.5 h-6"
-              onClick={(e) => { e.stopPropagation(); handleMatchClick(match); }}
-            >
-              <Edit className="w-3 h-3 mr-1" />
-              Score
+          {isAdmin && match.player1 && match.player2 && (
+            <Button variant="outline" size="sm" className="w-full mt-1.5 border-gray-600 text-gray-300 hover:bg-gray-700 hover:border-cyan-500 text-xs py-0.5 h-6" onClick={(e) => { e.stopPropagation(); handleMatchClick(match); }}>
+              <Edit className="w-3 h-3 mr-1" /> {match.winner ? "Corriger" : "Score"}
             </Button>
           )}
         </div>
@@ -213,40 +165,30 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
     );
   };
 
-
   return (
     <div className="max-w-full mx-auto space-y-8">
       <div className="text-center">
         <h2 className="text-3xl font-bold text-white mb-4">Tableau Final - Élimination Directe</h2>
-        
-        {/* --- NOUVEAU BOUTON DE RE-TIRAGE --- */}
-        {isAdmin && !champion && (
-           <Button
-             variant="outline"
-             size="sm"
-             onClick={handleRedraw}
-             disabled={isRedrawing || matches.some(m => m.played)}
-             className="border-gray-600 text-gray-300 hover:bg-gray-700 hover:border-cyan-500"
-           >
+         {isAdmin && !champion && matches.length > 0 && !matches.some(m => m.played) && (
+           <Button variant="outline" size="sm" onClick={handleRedraw} disabled={isRedrawing} className="border-gray-600 text-gray-300 hover:bg-gray-700 hover:border-cyan-500">
              {isRedrawing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Shuffle className="mr-2 h-4 w-4" />}
              {isRedrawing ? "Mélange..." : "Relancer le tirage"}
            </Button>
         )}
-
       </div>
 
-      {/* Affichage Champion (inchangé) */}
+      {/* Affichage Champion */}
       {champion && (
-        <div className="bg-gradient-to-br from-yellow-900/40 to-gray-800 rounded-2xl p-8 shadow-2xl border-4 border-yellow-500/50 text-center">
+        <div className="bg-gradient-to-br from-yellow-900/40 to-gray-800 rounded-2xl p-8 shadow-2xl border-4 border-yellow-500/50 text-center mb-8">
           <Crown className="w-20 h-20 text-yellow-400 mx-auto mb-4 animate-pulse" />
           <h2 className="text-4xl font-bold text-yellow-400 mb-2">Champion du Tournoi !</h2>
           <p className="text-5xl font-black text-white">{champion}</p>
         </div>
       )}
 
-      {/* Affichage du Podium (inchangé) */}
-      {champion && thirdPlaceWinner && matches && matches.length > 0 && (
-        <div className="mt-12 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-8 shadow-xl border border-gray-700">
+      {/* Affichage du Podium */}
+      {champion && thirdPlaceWinner && (
+        <div className="mb-12 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-8 shadow-xl border border-gray-700">
           <h3 className="text-3xl font-bold text-center text-gray-200 mb-8">Podium Final</h3>
           <div className="flex flex-col md:flex-row justify-around items-center gap-8">
             {(() => { 
@@ -254,13 +196,12 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
               const secondPlace = finalMatch && finalMatch.player1 && finalMatch.player2 
                 ? (finalMatch.player1 === champion ? finalMatch.player2 : finalMatch.player1)
                 : 'Non déterminé';
-
               return ( 
                 <>
                   <div className="text-center order-2 md:order-1">
                     <p className="text-6xl mb-2">🥈</p>
                     <p className="text-2xl font-semibold text-gray-300">2ème Place</p>
-                    <p className="text-3xl font-bold text-gray-100 mt-1">{secondPlace || '...'}</p> 
+                    <p className="text-3xl font-bold text-gray-100 mt-1">{secondPlace}</p> 
                   </div>
                   <div className="text-center order-1 md:order-2 scale-110">
                     <p className="text-7xl mb-2">🥇</p>
@@ -279,19 +220,14 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
         </div> 
       )} 
 
-
-      {/* Affichage du Tableau (inchangé, le verrouillage se fait dans renderMatchCard) */}
-      {!champion && matches.length > 0 && (
+      {/* Affichage du Tableau (TOUJOURS VISIBLE MAINTENANT) */}
+      {matches.length > 0 && (
         <div className="overflow-x-auto pb-4">
             <div className="flex gap-8 min-w-max px-4">
-              {roundsData
-                .filter(round => round.name !== 'Finale') 
-                .map((round, roundIndex) => (
+              {roundsData.filter(round => round.name !== 'Finale').map((round, roundIndex) => (
                   round.matches && round.matches.length > 0 && (
                       <div key={roundIndex} className="flex flex-col w-64 sm:w-72 flex-shrink-0"> 
-                      <h3 className={`text-xl font-bold text-center mb-4 pb-2 border-b-2 ${
-                          round.name === 'Finale' ? 'text-yellow-400 border-yellow-700' : 'text-cyan-400 border-cyan-700'
-                      }`}>
+                      <h3 className="text-xl font-bold text-center mb-4 pb-2 border-b-2 text-cyan-400 border-cyan-700">
                           {round.name}
                       </h3>
                       <div className="space-y-4 flex-grow flex flex-col justify-around">
@@ -312,14 +248,10 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
                  </div>
               )}
 
-              {roundsData
-                .filter(round => round.name === 'Finale') 
-                .map((round, roundIndex) => (
+              {roundsData.filter(round => round.name === 'Finale').map((round, roundIndex) => (
                   round.matches && round.matches.length > 0 && (
                       <div key="finale" className="flex flex-col w-64 sm:w-72 flex-shrink-0"> 
-                      <h3 className={`text-xl font-bold text-center mb-4 pb-2 border-b-2 ${
-                          round.name === 'Finale' ? 'text-yellow-400 border-yellow-700' : 'text-cyan-400 border-cyan-700'
-                      }`}>
+                      <h3 className="text-xl font-bold text-center mb-4 pb-2 border-b-2 text-yellow-400 border-yellow-700">
                           {round.name}
                       </h3>
                       <div className="space-y-4 flex-grow flex flex-col justify-around">
@@ -332,18 +264,13 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
         </div> 
       )} 
 
-
-       {/* Dialog (inchangé, le verrouillage se fait à l'ouverture) */}
        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
          <DialogContent className="bg-gray-900 border-gray-700">
            <DialogHeader>
-            {/* ... */}
              <DialogTitle className="text-2xl text-white">
                {selectedMatch && (
                  <>
-                   {selectedMatch.player1 || 'Joueur 1'} 
-                   <span className="text-cyan-400 mx-2">vs</span>
-                   {selectedMatch.player2 || 'Joueur 2'} 
+                   {selectedMatch.player1} <span className="text-cyan-400 mx-2">vs</span> {selectedMatch.player2} 
                  </>
                )}
              </DialogTitle>
@@ -355,41 +282,20 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
                </p>
              </div>
              <div className="grid grid-cols-2 gap-4">
-              {/* ... */}
                <div>
-                 <Label className="text-gray-300 mb-2 block">{selectedMatch?.player1 || '...'}</Label>
-                 <Input
-                   type="number"
-                   min="0"
-                   value={score1}
-                   onChange={(e) => setScore1(e.target.value)}
-                   placeholder="Score"
-                   className="text-2xl text-center bg-gray-800 border-gray-600 text-white"
-                   disabled={isSavingScore}
-                 />
+                 <Label className="text-gray-300 mb-2 block">{selectedMatch?.player1}</Label>
+                 <Input type="number" min="0" value={score1} onChange={(e) => setScore1(e.target.value)} placeholder="Score" className="text-2xl text-center bg-gray-800 border-gray-600 text-white" disabled={isSavingScore} />
                </div>
                <div>
-                 <Label className="text-gray-300 mb-2 block">{selectedMatch?.player2 || '...'}</Label>
-                 <Input
-                   type="number"
-                   min="0"
-                   value={score2}
-                   onChange={(e) => setScore2(e.target.value)}
-                   placeholder="Score"
-                   className="text-2xl text-center bg-gray-800 border-gray-600 text-white"
-                   disabled={isSavingScore}
-                 />
+                 <Label className="text-gray-300 mb-2 block">{selectedMatch?.player2}</Label>
+                 <Input type="number" min="0" value={score2} onChange={(e) => setScore2(e.target.value)} placeholder="Score" className="text-2xl text-center bg-gray-800 border-gray-600 text-white" disabled={isSavingScore} />
                </div>
              </div>
              <DialogFooter>
                  <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSavingScore}>Annuler</Button>
-                 <Button
-                    onClick={handleScoreSubmit}
-                    disabled={isSavingScore || score1 === '' || score2 === '' || (isFinalOrThirdPlace && score1 === score2)}
-                    className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white"
-                 >
+                 <Button onClick={handleScoreSubmit} disabled={isSavingScore || score1 === '' || score2 === '' || (isFinalOrThirdPlace && score1 === score2)} className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white">
                     {isSavingScore ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    {isSavingScore ? "Enregistrement..." : "Enregistrer le score"}
+                    {isSavingScore ? "Enregistrement..." : "Enregistrer"}
                  </Button>
              </DialogFooter>
            </div>
