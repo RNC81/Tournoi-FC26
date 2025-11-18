@@ -1,16 +1,13 @@
 /* Fichier: frontend/src/components/Step2GroupStage.jsx */
 import { useState, useEffect, useMemo } from 'react';
-// On enlève Shuffle
 import { ArrowRight, Edit, Loader2, Lock } from 'lucide-react'; 
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog'; 
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useToast } from '../hooks/use-toast';
-// On enlève drawGroups
 import { updateScore, completeGroupStage } from '../api'; 
 
-// AJOUT DE CETTE FONCTION HELPER
 const getTargetQualifiedCount = (totalPlayers) => {
   if (totalPlayers <= 8) return 4;
   if (totalPlayers <= 16) return 8;
@@ -23,7 +20,6 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
   const [score1, setScore1] = useState('');
   const [score2, setScore2] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  // On enlève isDrawing
   const [isSavingScore, setIsSavingScore] = useState(false); 
   const [isCompleting, setIsCompleting] = useState(false); 
   const [startGroupAnimation, setStartGroupAnimation] = useState(false); 
@@ -35,8 +31,6 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
         setTimeout(() => setStartGroupAnimation(true), 50);
     }
   }, [groups]);
-
-  // LA FONCTION handleDrawGroups EST SUPPRIMÉE
 
   const handleMatchClick = (groupIndex, match) => {
     if (!isAdmin) {
@@ -83,15 +77,18 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
   const handleCompleteStageClick = async () => {
     setIsCompleting(true);
     try {
-      const updatedTournament = await completeGroupStage(tournamentId);
-      onCompleteGroups(updatedTournament); 
-      toast({ title: 'Phase de poules terminée !', description: 'Affichage des qualifiés.' });
+      await completeGroupStage(tournamentId);
+      // --- MODIFICATION ICI : Force le rechargement ---
+      toast({ title: 'Phase de poules terminée !', description: 'Chargement de la phase finale...' });
+      // On attend un tout petit peu pour que le toast s'affiche
+      setTimeout(() => {
+          window.location.reload(); // <-- Force le rechargement de la page
+      }, 500);
     } catch (error) {
       const errorMsg = error.response?.data?.detail || "Impossible de passer à la suite.";
       toast({ title: 'Erreur', description: errorMsg, variant: 'destructive' });
       console.error("Failed to complete group stage:", error);
-    } finally {
-      setIsCompleting(false);
+      setIsCompleting(false); // On ne désactive le chargement qu'en cas d'erreur
     }
   };
 
@@ -126,9 +123,6 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
      <div className="max-w-7xl mx-auto space-y-8">
       <div className="text-center">
         <h2 className="text-3xl font-bold text-white mb-4">Phase de Poules</h2>
-        
-        {/* LE BOUTON "Lancer le tirage" A ÉTÉ SUPPRIMÉ */}
-        
         {generatedGroups.length === 0 && (
             <p className="text-gray-400">Aucun groupe n'a été généré.</p>
         )}
@@ -218,7 +212,6 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
              ))}
            </div>
 
-           {/* --- CLASSEMENT GÉNÉRAL --- */}
            {allMatchesPlayed && (
              <div className="mt-12 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 shadow-2xl border border-gray-700">
                <h3 className="text-2xl font-bold text-cyan-400 mb-4 text-center">Classement Général (Provisoire)</h3>
@@ -273,8 +266,6 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
                </div>
              </div>
            )}
-           {/* --- FIN DU CLASSEMENT GÉNÉRAL --- */}
-
 
            {isAdmin && allMatchesPlayed && (
              <div className="flex justify-center mt-8">
