@@ -1,6 +1,6 @@
+// Fichier: frontend/src/api.js
 import axios from 'axios';
 
-// Récupère l'URL de base de l'API depuis les variables d'environnement
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:10000'; 
 
 console.log("Using API Base URL:", API_BASE_URL); 
@@ -10,21 +10,31 @@ const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  // Ajout du timeout pour les "cold starts" de Render
-  timeout: 30000, // 30 000 ms = 30 secondes
+  timeout: 30000, 
 });
 
-// --- Fonctions d'API ---
+// --- NOUVEAU : Intercepteur ---
+// Gère les erreurs 401 (Token expiré / Non autorisé)
+apiClient.interceptors.response.use(
+  (response) => response, // Renvoie la réponse si tout va bien
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      // Si 401, le token est invalide
+      // On force la déconnexion en supprimant le token du localStorage
+      localStorage.removeItem('authToken');
+      // On recharge la page pour forcer le retour à l'écran de login
+      window.location.href = '/login'; 
+    }
+    return Promise.reject(error);
+  }
+);
+// --- FIN NOUVEAU ---
 
-/**
- * Crée un nouveau tournoi.
- * @param {string[]} playerNames - Liste des noms des joueurs.
- * @param {number|null} numGroups - Nombre de poules souhaité (ou null).
- * @returns {Promise<object>} Les données du tournoi créé.
- */
+
+// ... (Toutes vos fonctions 'createTournament', 'getTournament', etc., restent INCHANGÉES) ...
+
 export const createTournament = async (playerNames, numGroups) => {
   try {
-    // AJOUT de numGroups à la requête
     const response = await apiClient.post('/api/tournament', { playerNames, numGroups });
     return response.data;
   } catch (error) {
@@ -33,37 +43,25 @@ export const createTournament = async (playerNames, numGroups) => {
   }
 };
 
-/**
- * Récupère les données d'un tournoi (par ID ou le 'active').
- * @param {string} tournamentId - L'ID du tournoi ou "active".
- * @returns {Promise<object>} Les données du tournoi.
- */
 export const getTournament = async (tournamentId) => {
   try {
-    // CORRECTION : Utilise la variable 'url'
     const url = tournamentId === 'active'
       ? '/api/tournament/active'
       : `/api/tournament/${tournamentId}`;
-      
     console.log(`Fetching tournament with ID/Alias: ${tournamentId} (URL: ${url})`);
-    const response = await apiClient.get(url); // <-- CORRIGÉ: Utilise la variable 'url'
+    const response = await apiClient.get(url);
     console.log("Tournament data received:", response.data);
     return response.data;
   } catch (error) {
      if (error.response?.status === 404) {
        console.warn(`Tournament ${tournamentId} not found.`);
-       return null; // Retourne null si 404, géré par TournamentManager
+       return null; 
      }
     console.error("Error fetching tournament:", error.response?.data || error.message);
     throw error;
   }
 };
 
-/**
- * (Obsolète) Tente de tirer les groupes. Le backend renverra juste l'état.
- * @param {string} tournamentId - L'ID du tournoi.
- * @returns {Promise<object>} Les données du tournoi mises à jour.
- */
 export const drawGroups = async (tournamentId) => {
   try {
     const response = await apiClient.post(`/api/tournament/${tournamentId}/draw_groups`);
@@ -74,14 +72,6 @@ export const drawGroups = async (tournamentId) => {
   }
 };
 
-/**
- * Met à jour le score d'un match (poule ou knockout).
- * @param {string} tournamentId - L'ID du tournoi.
- * @param {string} matchId - L'ID du match.
- * @param {number} score1 - Score du joueur 1.
- * @param {number} score2 - Score du joueur 2.
- * @returns {Promise<object>} Les données du tournoi mises à jour.
- */
 export const updateScore = async (tournamentId, matchId, score1, score2) => {
   try {
     const response = await apiClient.post(`/api/tournament/${tournamentId}/match/${matchId}/score`, { score1, score2 });
@@ -92,11 +82,6 @@ export const updateScore = async (tournamentId, matchId, score1, score2) => {
   }
 };
 
-/**
- * Finalise la phase de groupes et génère le tableau knockout.
- * @param {string} tournamentId - L'ID du tournoi.
- * @returns {Promise<object>} Les données du tournoi mises à jour.
- */
 export const completeGroupStage = async (tournamentId) => {
   try {
     const response = await apiClient.post(`/api/tournament/${tournamentId}/complete_groups`);
@@ -107,11 +92,6 @@ export const completeGroupStage = async (tournamentId) => {
   }
 };
 
-/**
- * Regénère le tableau knockout en re-mélangeant les qualifiés.
- * @param {string} tournamentId - L'ID du tournoi.
- * @returns {Promise<object>} Les données du tournoi mises à jour.
- */
 export const redrawKnockout = async (tournamentId) => {
   try {
     const response = await apiClient.post(`/api/tournament/${tournamentId}/redraw_knockout`);
