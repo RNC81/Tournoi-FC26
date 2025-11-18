@@ -400,38 +400,52 @@ def generate_knockout_matches_logic(qualified_player_names: List[str]) -> List[K
 
 # --- Routes API (Tournoi) ---
 
+# --- NOUVELLE ROUTE : Obtenir "Mes Tournois" ---
+@api_router.get("/tournaments/my-tournaments", response_model=List[Tournament])
+async def get_my_tournaments(current_user: UserInDB = Depends(get_current_user)):
+    """
+    Récupère tous les tournois appartenant à l'utilisateur actuellement connecté.
+    """
+    logging.info(f"Récupération des tournois pour l'utilisateur: {current_user.username}")
+    
+    # Trie du plus récent au plus ancien
+    tournaments = await tournaments_collection.find(
+        {"owner_username": current_user.username},
+        sort=[("createdAt", -1)]
+    ).to_list(1000) # Limite à 1000 tournois
+    
+    # Correction de l'_id pour chaque tournoi
+    for t in tournaments:
+        t["_id"] = str(t["_id"])
+        
+    return tournaments
+# --- FIN NOUVELLE ROUTE ---
+
+
 @api_router.post("/tournament", response_model=Tournament, status_code=201)
 async def create_tournament(
     request: TournamentCreateRequest, 
-    current_user: UserInDB = Depends(get_current_user) # <-- ROUTE PROTÉGÉE
+    current_user: UserInDB = Depends(get_current_user)
 ): 
-    """
-    Crée un nouveau tournoi. L'utilisateur doit être authentifié.
-    """
+    # (Route inchangée)
     player_names = request.playerNames
     if len(set(player_names)) != len(player_names):
         raise HTTPException(status_code=400, detail="Les noms des joueurs doivent être uniques")
-    
     generated_groups = create_groups_logic(player_names, request.numGroups)
-    
     new_tournament = Tournament(
         name=request.tournamentName or f"Tournoi du {datetime.now(timezone.utc).strftime('%d/%m/%Y')}",
         players=player_names,
         currentStep="groups",
         groups=generated_groups,
-        owner_username=current_user.username # <-- PROPRIÉTAIRE ENREGISTRÉ
+        owner_username=current_user.username 
     )
-    
     tournament_dict = new_tournament.model_dump(by_alias=True)
     tournament_dict["createdAt"] = new_tournament.createdAt
     tournament_dict["updatedAt"] = new_tournament.updatedAt
-    
     inserted_result = await tournaments_collection.insert_one(tournament_dict)
     created_tournament = await tournaments_collection.find_one({"_id": inserted_result.inserted_id})
-    
     if created_tournament and "_id" in created_tournament:
         created_tournament["_id"] = str(created_tournament["_id"])
-        
     return Tournament(**created_tournament)
 
 @api_router.get("/tournament/active", response_model=Tournament)

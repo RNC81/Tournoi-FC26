@@ -1,11 +1,44 @@
-import React from 'react';
+// Fichier: frontend/src/pages/DashboardPage.jsx
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom'; // Ajout de Link
+import { getMyTournaments } from '../api'; // API pour charger les tournois
+import { Loader2, Plus, LogOut, ArrowRight, Trophy } from 'lucide-react';
+import { useToast } from '../hooks/use-toast';
+
+// Helper pour formater la date
+const formatDate = (dateString) => {
+  return new Date(dateString).toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  });
+};
 
 const DashboardPage = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
+  
+  const [tournaments, setTournaments] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadTournaments = async () => {
+      try {
+        setLoading(true);
+        const data = await getMyTournaments();
+        setTournaments(data);
+      } catch (error) {
+        toast({ title: 'Erreur', description: 'Impossible de charger vos tournois.', variant: 'destructive' });
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadTournaments();
+  }, [toast]);
 
   const handleLogout = () => {
     logout();
@@ -13,15 +46,70 @@ const DashboardPage = () => {
   };
 
   return (
-    <div className="p-8 text-white">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Tableau de Bord</h1>
-        <div>
-          <span className="mr-4">Bonjour, {user?.username}</span>
-          <Button variant="outline" onClick={handleLogout}>Déconnexion</Button>
+    <div className="min-h-screen w-full py-8 px-4">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
+          <h1 className="text-3xl font-bold text-white">
+            Tableau de Bord ({user?.username})
+          </h1>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleLogout} className="border-gray-600 text-gray-300 hover:bg-gray-800">
+              <LogOut className="mr-2" />
+              Déconnexion
+            </Button>
+            <Button onClick={() => navigate('/create-tournament')} className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white">
+              <Plus className="mr-2" />
+              Créer un tournoi
+            </Button>
+          </div>
+        </div>
+
+        {/* Contenu de la page */}
+        <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-8 shadow-2xl border border-gray-700">
+          <h2 className="text-2xl font-semibold text-white mb-6">Mes Tournois</h2>
+          {loading ? (
+            <div className="flex justify-center items-center h-48">
+              <Loader2 className="w-12 h-12 animate-spin text-cyan-400" />
+            </div>
+          ) : tournaments.length === 0 ? (
+            <p className="text-gray-400 text-center">
+              Vous n'avez pas encore créé de tournoi.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {tournaments.map((tournoi) => (
+                <Link 
+                  to={`/tournament/${tournoi.id || tournoi._id}`} 
+                  key={tournoi.id || tournoi._id}
+                  className="block p-6 bg-gray-800/50 border border-gray-700 rounded-lg hover:bg-gray-800 transition-colors group"
+                >
+                  <div className="flex flex-col sm:flex-row justify-between items-start">
+                    <div>
+                      <h3 className="text-xl font-bold text-cyan-400 group-hover:underline">{tournoi.name}</h3>
+                      <p className="text-sm text-gray-400 mt-1">
+                        Créé le: {formatDate(tournoi.createdAt)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4 mt-4 sm:mt-0">
+                      {tournoi.winner ? (
+                        <span className="flex items-center text-sm font-medium text-yellow-400">
+                          <Trophy className="mr-2" />
+                          Terminé (Vainqueur: {tournoi.winner})
+                        </span>
+                      ) : (
+                         <span className="text-sm font-medium text-green-400">
+                          En cours
+                        </span>
+                      )}
+                      <ArrowRight className="w-5 h-5 text-gray-500 group-hover:text-cyan-400 transition-transform group-hover:translate-x-1" />
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </div>
-      <p>Étape 4 : C'est ici que nous afficherons la liste "Mes Tournois" et le bouton "Créer".</p>
     </div>
   );
 };

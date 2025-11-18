@@ -41,7 +41,15 @@ function App() {
               </ProtectedRoute>
             } 
           />
-          
+          {/* --- NOUVELLE ROUTE PROTÉGÉE --- */}
+          <Route 
+            path="/create-tournament" 
+            element={
+              <ProtectedRoute>
+                <CreateTournamentPage />
+              </ProtectedRoute>
+            } 
+          />
           {/* Redirection par défaut */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

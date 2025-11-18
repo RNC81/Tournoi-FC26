@@ -62,6 +62,22 @@ export const getTournament = async (tournamentId) => {
   }
 };
 
+// --- NOUVELLE FONCTION ---
+/**
+ * Récupère tous les tournois de l'utilisateur connecté.
+ * @returns {Promise<Array<object>>} Une liste de tournois.
+ */
+export const getMyTournaments = async () => {
+  try {
+    const response = await apiClient.get('/api/tournaments/my-tournaments');
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching my tournaments:", error.response?.data || error.message);
+    throw error;
+  }
+};
+// --- FIN NOUVELLE FONCTION ---
+
 export const drawGroups = async (tournamentId) => {
   try {
     const response = await apiClient.post(`/api/tournament/${tournamentId}/draw_groups`);
