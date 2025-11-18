@@ -5,9 +5,9 @@ import Step1Registration from './Step1Registration';
 import Step2GroupStage from './Step2GroupStage';
 import Step3Qualification from './Step3Qualification';
 import Step4Bracket from './Step4Bracket';
-import { Trophy, Loader2, Check, ShieldOff, LogOut, Users } from 'lucide-react'; 
+import { Trophy, Loader2, Check, ShieldOff, LogOut, Users, Trash2 } from 'lucide-react'; // Ajout Trash2
 import { useToast } from '../hooks/use-toast';
-import { getTournament } from '../api'; 
+import { getTournament, deleteTournament } from '../api'; // Ajout deleteTournament
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,12 +21,7 @@ import {
 } from './ui/alert-dialog'; 
 import { Button } from './ui/button'; 
 
-const TOURNAMENT_ID_LS_KEY = 'currentTournamentId';
-const ADMIN_STATUS_LS_KEY = 'isAdmin'; 
-
-// MODIFICATION : On accepte 'initialData' ici
 const TournamentManager = ({ isAdmin, initialData }) => { 
-  // Initialisation directe avec les données reçues
   const [tournamentId, setTournamentId] = useState(initialData?._id || initialData?.id || null);
   const [currentStep, setCurrentStep] = useState("loading"); 
   const [players, setPlayers] = useState([]);
@@ -36,12 +31,14 @@ const TournamentManager = ({ isAdmin, initialData }) => {
   const [knockoutMatches, setKnockoutMatches] = useState([]);
   const [winner, setWinner] = useState(null);
   const [thirdPlace, setThirdPlace] = useState(null); 
-  
-  // Si on a initialData, on n'est pas en chargement
   const [isLoading, setIsLoading] = useState(!initialData); 
+  
+  // NOUVEAU : Pour gérer l'état "en cours de suppression"
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const { toast } = useToast();
 
-  // Fonction de mise à jour (optimisée avec useCallback)
+  // ... (updateFullTournamentState INCHANGÉ) ...
   const updateFullTournamentState = useCallback((data) => {
     if (!data) {
         console.warn("Attempted to update state with null data.");
@@ -50,7 +47,6 @@ const TournamentManager = ({ isAdmin, initialData }) => {
         return;
     }
     
-    // Log seulement si l'état change
     if (data.currentStep !== currentStep || data.winner !== winner) {
        console.log("Updating full state from API data:", data);
     }
@@ -91,13 +87,11 @@ const TournamentManager = ({ isAdmin, initialData }) => {
   }, [currentStep, winner]); 
 
 
-  // 1. CHARGEMENT INITIAL
+  // ... (useEffect de chargement et polling INCHANGÉS) ...
   useEffect(() => {
     if (initialData) {
-        // Si le parent nous a donné les données, on les utilise direct
         updateFullTournamentState(initialData);
     } else if (tournamentId) {
-        // Sinon (fallback), si on a un ID, on essaie de charger
         const fetchT = async () => {
             try {
                 const data = await getTournament(tournamentId);
@@ -110,38 +104,29 @@ const TournamentManager = ({ isAdmin, initialData }) => {
         };
         fetchT();
     } else {
-        // Pas de données, pas d'ID -> Erreur
         setCurrentStep("no_tournament");
         setIsLoading(false);
     }
   }, [initialData, tournamentId, updateFullTournamentState]);
 
-
-  // 2. POLLING (Rafraîchissement Auto)
   useEffect(() => {
-    // Pas de polling si Admin ou si pas de tournoi chargé
     if (isAdmin || !tournamentId) {
       return;
     }
-
     const intervalId = setInterval(async () => {
-      console.log(`Spectator: Polling tournament ${tournamentId}...`);
       try {
-        // On rafraîchit CE tournoi spécifiquement
         const data = await getTournament(tournamentId);
-        if (data) {
-          updateFullTournamentState(data);
-        }
+        if (data) updateFullTournamentState(data);
+        else setCurrentStep('no_tournament'); // Si supprimé entre temps
       } catch (error) {
-        console.warn("Spectator: Poll failed", error);
+        // 404 sera attrapé ici dans api.js et renverra null, donc géré au-dessus
       }
-    }, 15000); // 15 secondes
-
+    }, 15000); 
     return () => clearInterval(intervalId);
   }, [isAdmin, tournamentId, updateFullTournamentState]);
 
 
-  // --- Handlers (inchangés) ---
+  // ... (Handlers standards INCHANGÉS) ...
   const handleTournamentCreated = (tournamentData) => { updateFullTournamentState(tournamentData); };
   const handleGroupsDrawn = (tournamentData) => { updateFullTournamentState(tournamentData); };
   const handleScoreUpdated = (tournamentData) => { updateFullTournamentState(tournamentData); };
@@ -149,34 +134,29 @@ const TournamentManager = ({ isAdmin, initialData }) => {
   const handleKnockoutUpdated = (tournamentData) => { updateFullTournamentState(tournamentData); };
   const handleTournamentFinished = (tournamentData) => { updateFullTournamentState(tournamentData); };
 
-  const handleResetTournament = () => {
-        if (!isAdmin) return; 
-        setIsLoading(true); 
-        // Logic reset local (mais en multi-tournoi, c'est géré autrement normalement)
-        setTournamentId(null);
-        setPlayers([]);
-        setGroups([]);
-        setQualifiedPlayers([]);
-        setEliminatedPlayers([]);
-        setKnockoutMatches([]);
-        setWinner(null);
-        setCurrentStep("config"); 
-        setIsLoading(false); 
-        toast({ title: "Tournoi réinitialisé."});
-  };
-  
-  const handleAdminLogout = () => {
-      localStorage.removeItem(ADMIN_STATUS_LS_KEY);
-      localStorage.removeItem('authToken');
-      window.location.href = '/'; 
+  // --- MODIFIÉ : SUPPRESSION AU LIEU DE RESET ---
+  const handleDeleteTournament = async () => {
+        if (!isAdmin || !tournamentId) return; 
+        
+        setIsDeleting(true);
+        try {
+            await deleteTournament(tournamentId);
+            toast({ title: "Tournoi supprimé.", description: "Redirection vers le tableau de bord..." });
+            // Redirection immédiate vers le dashboard pour éviter le 404
+            window.location.href = '/dashboard';
+        } catch (error) {
+            toast({ title: "Erreur", description: "Impossible de supprimer le tournoi.", variant: "destructive" });
+            setIsDeleting(false);
+        }
   };
 
-
-  if (isLoading) {
+  if (isLoading || isDeleting) { // Loader si suppression en cours
       return (
           <div className="flex justify-center items-center min-h-screen">
               <Loader2 className="h-16 w-16 animate-spin text-cyan-400" />
-              <p className="ml-4 text-xl text-gray-300">Chargement...</p>
+              <p className="ml-4 text-xl text-gray-300">
+                  {isDeleting ? "Suppression en cours..." : "Chargement..."}
+              </p>
           </div>
       );
   }
@@ -186,12 +166,13 @@ const TournamentManager = ({ isAdmin, initialData }) => {
           <div className="flex flex-col justify-center items-center min-h-screen text-center px-4">
               <ShieldOff className="h-24 w-24 text-gray-600 mb-6" />
               <h1 className="text-3xl font-bold text-gray-300 mb-2">Tournoi introuvable</h1>
-              <p className="text-xl text-gray-400">Les données ne sont pas disponibles.</p>
+              <p className="text-xl text-gray-400">Les données ne sont pas disponibles ou ont été supprimées.</p>
               <Button onClick={() => window.location.href='/'} className="mt-6" variant="outline">Retour Accueil</Button>
           </div>
        );
   }
 
+  // Rendu conditionnel (inchangé)
   const renderStep = () => {
     switch (currentStep) {
       case 'config':
@@ -223,26 +204,40 @@ const TournamentManager = ({ isAdmin, initialData }) => {
 
              {isAdmin && (
                 <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto sm:ml-auto">
+                    {/* Bouton SUPPRIMER (au lieu de Réinitialiser) */}
                     {currentStep !== 'config' && (
                          <AlertDialog>
                          <AlertDialogTrigger asChild>
-                           <Button variant="destructive" className="px-6 py-2 rounded-lg transition-all duration-300 font-medium w-full sm:w-auto">
-                             Réinitialiser
+                           <Button
+                             variant="destructive" 
+                             className="px-6 py-2 rounded-lg transition-all duration-300 font-medium w-full sm:w-auto" 
+                           >
+                             <Trash2 className="w-4 h-4 mr-2" />
+                             Supprimer
                            </Button>
                          </AlertDialogTrigger>
                          <AlertDialogContent className="bg-gray-900 border-gray-700 text-gray-100">
                            <AlertDialogHeader>
-                             <AlertDialogTitle className="text-xl text-white">Êtes-vous sûr ?</AlertDialogTitle>
-                             <AlertDialogDescription className="text-gray-400">Cette action est irréversible.</AlertDialogDescription>
+                             <AlertDialogTitle className="text-xl text-white">Supprimer le tournoi ?</AlertDialogTitle>
+                             <AlertDialogDescription className="text-gray-400">
+                               Cette action est <strong>définitive</strong>. Toutes les données de ce tournoi seront perdues.
+                               Vous serez redirigé vers votre tableau de bord.
+                             </AlertDialogDescription>
                            </AlertDialogHeader>
                            <AlertDialogFooter>
                              <AlertDialogCancel className="text-gray-300 border-gray-600 hover:bg-gray-700">Annuler</AlertDialogCancel>
-                             <AlertDialogAction onClick={handleResetTournament} className="bg-red-600 hover:bg-red-700 text-white">Confirmer</AlertDialogAction>
+                             <AlertDialogAction onClick={handleDeleteTournament} className="bg-red-600 hover:bg-red-700 text-white">
+                               Confirmer la suppression
+                             </AlertDialogAction>
                            </AlertDialogFooter>
                          </AlertDialogContent>
                        </AlertDialog>
                     )}
-                     <Button variant="outline" onClick={() => window.location.href = '/dashboard'} className="px-6 py-2 rounded-lg transition-all duration-300 font-medium w-full sm:w-auto border-gray-600 text-gray-300 hover:bg-gray-800">
+                     <Button
+                        variant="outline"
+                        onClick={() => window.location.href = '/dashboard'}
+                        className="px-6 py-2 rounded-lg transition-all duration-300 font-medium w-full sm:w-auto border-gray-600 text-gray-300 hover:bg-gray-800"
+                     >
                         <LogOut className="w-4 h-4 mr-2" /> Dashboard
                      </Button>
                 </div>

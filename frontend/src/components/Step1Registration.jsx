@@ -1,6 +1,6 @@
 /* Fichier: frontend/src/components/Step1Registration.jsx */
 import { useState } from 'react';
-import { Users, ArrowRight, GitBranch } from 'lucide-react'; // Ajout GitBranch
+import { Users, ArrowRight, GitBranch, Type } from 'lucide-react'; // Ajout Type
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -9,13 +9,13 @@ import { createTournament } from '../api';
 
 const Step1Registration = ({ onComplete, isAdmin }) => { 
   const [playerCount, setPlayerCount] = useState('');
-  const [numGroups, setNumGroups] = useState(''); // <-- NOUVEL ÉTAT
+  const [numGroups, setNumGroups] = useState(''); 
+  const [tournamentName, setTournamentName] = useState(''); // <-- NOUVEAU
   const [playerNames, setPlayerNames] = useState([]);
   const [showNameInputs, setShowNameInputs] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false); 
   const { toast } = useToast();
 
-  // Sécurité : ne devrait pas s'afficher si !isAdmin
   if (!isAdmin) {
       return (
           <div className="text-center text-red-500">
@@ -35,10 +35,8 @@ const Step1Registration = ({ onComplete, isAdmin }) => {
       return;
     }
     
-    // Pré-remplir le nombre de poules suggéré
     const suggestedGroups = Math.ceil(count / 4);
     setNumGroups(suggestedGroups.toString());
-    
     setPlayerNames(Array(count).fill(''));
     setShowNameInputs(true);
   };
@@ -63,21 +61,20 @@ const Step1Registration = ({ onComplete, isAdmin }) => {
       return;
     }
     
-    // NOUVELLE VALIDATION : Nombre de poules
     const groupsInt = numGroups ? parseInt(numGroups) : 0;
     if (numGroups && (groupsInt <= 1 || groupsInt > filledNames.length)) {
         toast({ title: 'Erreur', description: 'Nombre de poules invalide (doit être > 1 et < Nbre de joueurs).', variant: 'destructive' });
         return;
     }
-    // Si numGroups est 0 ou vide, on le passe en null pour que le backend utilise la logique par défaut
     const finalNumGroups = groupsInt > 0 ? groupsInt : null;
 
     setIsSubmitting(true);
     try {
-      // APPEL API MODIFIÉ
-      const tournamentData = await createTournament(filledNames, finalNumGroups);
+      // On passe le nom du tournoi (défaut si vide)
+      const finalName = tournamentName.trim() || "Tournoi EA FC";
+      const tournamentData = await createTournament(filledNames, finalNumGroups, finalName);
       
-      toast({ title: 'Succès', description: `Tournoi créé avec ${filledNames.length} joueurs !` });
+      toast({ title: 'Succès', description: `Tournoi "${finalName}" créé avec ${filledNames.length} joueurs !` });
       onComplete(tournamentData); 
     } catch (error) {
       toast({ title: 'Erreur API', description: error.response?.data?.detail || "Impossible de créer le tournoi.", variant: 'destructive' });
@@ -96,8 +93,23 @@ const Step1Registration = ({ onComplete, isAdmin }) => {
         </div>
 
         {!showNameInputs ? (
-          // --- ÉCRAN 1 : NOMBRE DE JOUEURS ---
           <div className="space-y-6">
+            {/* --- NOUVEAU CHAMP : NOM DU TOURNOI --- */}
+            <div>
+               <Label htmlFor="tName" className="text-lg text-gray-300 mb-2 block">
+                 Nom du Tournoi (Optionnel)
+               </Label>
+               <Input
+                  id="tName"
+                  type="text"
+                  value={tournamentName}
+                  onChange={(e) => setTournamentName(e.target.value)}
+                  placeholder="ex: Tournoi du Samedi Soir"
+                  className="text-lg py-6 bg-gray-800 border-gray-600 text-white placeholder:text-gray-500"
+                  disabled={isSubmitting}
+               />
+            </div>
+
             <div>
               <Label htmlFor="playerCount" className="text-lg text-gray-300 mb-2 block">
                 Combien de joueurs participent au tournoi ?
@@ -125,15 +137,14 @@ const Step1Registration = ({ onComplete, isAdmin }) => {
             </Button>
           </div>
         ) : (
-          // --- ÉCRAN 2 : NOMS ET POULES ---
           <div className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 <div className="bg-gray-800 rounded-lg p-4 border border-gray-700 flex items-center justify-center">
+                 <div className="bg-gray-800 rounded-lg p-4 border border-gray-700 flex flex-col justify-center">
+                   <p className="text-gray-400 text-sm">Tournoi : <span className="text-white">{tournamentName || "Tournoi EA FC"}</span></p>
                    <p className="text-gray-300 text-lg">
                      <span className="font-bold text-cyan-400">{playerNames.length}</span> joueurs à inscrire
                    </p>
                  </div>
-                 {/* --- NOUVEAU CHAMP : NOMBRE DE POULES --- */}
                  <div className="space-y-2">
                     <Label htmlFor="numGroups" className="text-gray-300 flex items-center gap-2">
                         <GitBranch className="w-4 h-4" />

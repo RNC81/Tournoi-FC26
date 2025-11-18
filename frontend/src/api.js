@@ -1,6 +1,7 @@
-// Fichier: frontend/src/api.js
+/* Fichier: frontend/src/api.js */
 import axios from 'axios';
 
+// Récupère l'URL de base de l'API depuis les variables d'environnement
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:10000'; 
 
 console.log("Using API Base URL:", API_BASE_URL); 
@@ -26,7 +27,6 @@ apiClient.interceptors.response.use(
 
 // --- Fonctions d'API ---
 
-// --- NOUVELLE FONCTION ---
 export const getPublicTournaments = async () => {
   try {
     const response = await apiClient.get('/api/tournaments/public');
@@ -36,17 +36,33 @@ export const getPublicTournaments = async () => {
     throw error;
   }
 };
-// --- FIN NOUVELLE FONCTION ---
 
-export const createTournament = async (playerNames, numGroups) => {
+// --- MODIFICATION : Ajout de tournamentName ---
+export const createTournament = async (playerNames, numGroups, tournamentName) => {
   try {
-    const response = await apiClient.post('/api/tournament', { playerNames, numGroups });
+    // Le payload doit correspondre à TournamentCreateRequest
+    const response = await apiClient.post('/api/tournament', { 
+        playerNames, 
+        numGroups,
+        tournamentName // On envoie le nom
+    });
     return response.data;
   } catch (error) {
     console.error("Error creating tournament:", error.response?.data || error.message);
     throw error; 
   }
 };
+
+// --- NOUVEAU : Fonction de suppression ---
+export const deleteTournament = async (tournamentId) => {
+    try {
+        await apiClient.delete(`/api/tournament/${tournamentId}`);
+        return true;
+    } catch (error) {
+        console.error("Error deleting tournament:", error.response?.data || error.message);
+        throw error;
+    }
+}
 
 export const getMyTournaments = async () => {
   try {
@@ -60,14 +76,10 @@ export const getMyTournaments = async () => {
 
 export const getTournament = async (tournamentId) => {
   try {
-    // --- CORRECTION ---
-    // On ne gère plus 'active', car la route a été supprimée.
-    // Si on reçoit 'active' par erreur, on renvoie null ou on loggue une erreur.
     if (tournamentId === 'active') {
         console.warn("getTournament called with 'active', which is deprecated.");
         return null;
     }
-      
     const response = await apiClient.get(`/api/tournament/${tournamentId}`);
     console.log("Tournament data received:", response.data);
     return response.data;
@@ -111,7 +123,7 @@ export const redrawKnockout = async (tournamentId) => {
   }
 };
 
-// drawGroups est obsolète
+// Obsolète mais gardé pour compatibilité
 export const drawGroups = async (tournamentId) => {
   try {
     const response = await apiClient.post(`/api/tournament/${tournamentId}/draw_groups`);
