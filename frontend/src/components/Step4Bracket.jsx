@@ -33,14 +33,17 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
     setThirdPlaceWinner(thirdPlace);
   }, [thirdPlace]);
 
+  // --- CALCULS ---
   const mainBracketMatches = matches.filter(m => m && !m.id.startsWith("match_third_place_"));
   const maxRound = mainBracketMatches.length > 0 ? Math.max(0, ...mainBracketMatches.map((m) => m ? m.round : -1)) : -1;
   
+  // Calcul du totalRounds basé sur le round 0
   const matchesInRound0 = mainBracketMatches.filter(m => m.round === 0).length;
-  const initialParticipants = matchesInRound0 * 2;
-  const totalRoundsTheoretical = Math.log2(initialParticipants);
+  const totalRounds = matchesInRound0 > 0 ? Math.ceil(Math.log2(matchesInRound0 * 2)) : (maxRound + 1);
 
-  const isFinalOrThirdPlace = selectedMatch?.id?.startsWith("match_third_place_") || selectedMatch?.round === (totalRoundsTheoretical - 1);
+  const isFinalOrThirdPlace = selectedMatch?.id?.startsWith("match_third_place_") || selectedMatch?.round === (totalRounds - 1);
+
+  // --- HANDLERS ---
 
   const handleMatchClick = (match) => {
     if (!isAdmin) return;
@@ -61,12 +64,10 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
     }
     const s1 = parseInt(score1);
     const s2 = parseInt(score2);
-
     if (isNaN(s1) || isNaN(s2) || s1 < 0 || s2 < 0) {
       toast({ title: 'Erreur', description: 'Scores invalides.', variant: 'destructive' });
       return;
     }
-
     if (isFinalOrThirdPlace && s1 === s2) {
       toast({ title: 'Erreur', description: 'Match nul interdit pour la Finale et la 3ème place.', variant: 'destructive' });
       return;
@@ -77,9 +78,15 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
     try {
       const updatedTournament = await updateScore(tournamentId, selectedMatch.id, s1, s2);
       onScoreUpdate(updatedTournament); 
-      if (updatedTournament.winner && updatedTournament.thirdPlace) {
+
+      // Mise à jour locale
+      if (updatedTournament.winner) setChampion(updatedTournament.winner);
+      if (updatedTournament.thirdPlace) setThirdPlaceWinner(updatedTournament.thirdPlace);
+
+      if (updatedTournament.winner) { // Si on a un vainqueur, on notifie la fin
         onFinish(updatedTournament); 
       }
+
       setIsDialogOpen(false);
       setScore1(''); setScore2(''); setSelectedMatch(null);
       toast({ title: 'Score enregistré', description: `${selectedMatch.player1} ${s1} - ${s2} ${selectedMatch.player2}` });
@@ -103,7 +110,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
       onScoreUpdate(updatedTournament); 
       toast({ title: 'Tirage au sort relancé', description: 'Le tableau a été mélangé.' });
     } catch (error) {
-      toast({ title: 'Erreur', description: "Impossible de relancer.", variant: 'destructive' });
+      toast({ title: 'Erreur', description: "Impossible de relancer le tirage.", variant: 'destructive' });
     } finally {
       setIsRedrawing(false);
     }
@@ -117,13 +124,14 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
           onScoreUpdate(updatedTournament);
           toast({ title: "Tour suivant généré !", description: "Les équipes ont été mélangées." });
       } catch (error) {
-          const msg = error.response?.data?.detail || "Erreur.";
+          const msg = error.response?.data?.detail || "Erreur lors de la génération.";
           toast({ title: "Erreur", description: msg, variant: "destructive" });
       } finally {
           setIsGeneratingNext(false);
       }
   };
 
+  // --- LOGIQUE D'AFFICHAGE ---
   const currentRoundMatches = mainBracketMatches.filter(m => m.round === maxRound);
   const isCurrentRoundFinished = currentRoundMatches.length > 0 && currentRoundMatches.every(m => m.played && m.winner);
   const showNextRoundButton = isAdmin && isCurrentRoundFinished && !champion;
@@ -139,7 +147,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
   };
 
   const roundsData = Array.from({ length: maxRound + 1 }).map((_, roundIndex) => ({
-    name: getRoundName(roundIndex, totalRoundsTheoretical), 
+    name: getRoundName(roundIndex, totalRounds), 
     matches: mainBracketMatches.filter(m => m && m.round === roundIndex) 
   }));
 
@@ -196,6 +204,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
         )}
       </div>
 
+      {/* Champion */}
       {champion && (
         <div className="bg-gradient-to-br from-yellow-900/40 to-gray-800 rounded-2xl p-8 shadow-2xl border-4 border-yellow-500/50 text-center mb-8">
           <Crown className="w-20 h-20 text-yellow-400 mx-auto mb-4 animate-pulse" />
@@ -204,16 +213,20 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
         </div>
       )}
 
-      {/* Affichage du Podium (MODIFIÉ : s'affiche si champion existe, même sans 3e place) */}
+      {/* Podium : Affiché si champion existe, même sans 3e place */}
       {champion && (
         <div className="mb-12 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-8 shadow-xl border border-gray-700">
           <h3 className="text-3xl font-bold text-center text-gray-200 mb-8">Podium Final</h3>
           <div className="flex flex-col md:flex-row justify-around items-center gap-8">
             {(() => { 
-              const finalMatch = matches.find(m => m && m.round === maxRound && !m.id.startsWith("match_third_place_")); 
-              const secondPlace = finalMatch && finalMatch.player1 && finalMatch.player2 
-                ? (finalMatch.player1 === champion ? finalMatch.player2 : finalMatch.player1)
-                : 'Non déterminé';
+              // Trouver le dernier match joué
+              const finalMatch = mainBracketMatches.find(m => m.round === maxRound && !m.id.startsWith("match_third_place_")); 
+              
+              let secondPlace = 'Non déterminé';
+              if (finalMatch && finalMatch.winner) {
+                  secondPlace = (finalMatch.winner === finalMatch.player1) ? finalMatch.player2 : finalMatch.player1;
+              }
+
               return ( 
                 <>
                   <div className="text-center order-2 md:order-1">
@@ -238,7 +251,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
         </div> 
       )} 
 
-      {/* Le reste du tableau (toujours visible) ... */}
+      {/* Tableau */}
       {matches.length > 0 && (
         <div className="overflow-x-auto pb-4">
             <div className="flex gap-8 min-w-max px-4">
@@ -252,7 +265,6 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
                       </div>
                   )
               ))}
-              {/* Petite finale affichée si elle existe */}
               {thirdPlaceMatch && (
                  <div className="flex flex-col w-64 sm:w-72 flex-shrink-0"> 
                    <h3 className="text-xl font-bold text-orange-400 text-center mb-4 pb-2 border-b-2 border-orange-700">Match 3ème Place</h3>

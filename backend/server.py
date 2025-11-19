@@ -1,4 +1,4 @@
-# Fichier: server.py
+# Fichier: backend/server.py
 from fastapi import FastAPI, APIRouter, HTTPException, Body, Depends
 from fastapi.security import OAuth2PasswordBearer
 from dotenv import load_dotenv
@@ -320,42 +320,41 @@ def update_group_standings_logic(group: Group) -> List[PlayerStats]:
     for i, player in enumerate(sorted_players): player.groupPosition = i + 1
     return sorted_players
 
-def determine_qualifiers_logic(groups: List[Group], total_players: int) -> List[str]:
-    if total_players <= 8: targetQualified = 4
-    elif total_players <= 16: targetQualified = 8
-    else: targetQualified = 16 if total_players >= 24 else 8 
+def determine_qualifiers_logic(groups: List[Group], total_original_players: int) -> List[str]:
+    # --- CORRECTION CRITIQUE ICI ---
+    # On calcule le nombre total d'ENTITÉS (Équipes ou Joueurs) actuellement en jeu
+    total_entities = sum(len(g.players) for g in groups)
+    
+    # On base la qualification sur le nombre d'ÉQUIPES, pas de joueurs individuels
+    if total_entities <= 8: target = 4
+    elif total_entities <= 16: target = 8
+    else: target = 16 if total_entities >= 24 else 8 
+    
     num_groups = len(groups)
     qualified = []
-    logging.info(f"Début Qualification: {total_players} joueurs, {num_groups} poules. Cible: {targetQualified} qualifiés.")
     
-    if targetQualified % num_groups == 0:
-        qualifiers_per_group = targetQualified // num_groups
-        logging.info(f"Cas 'Propre' détecté. Règle: Top {qualifiers_per_group} de chaque poule.")
-        for group in groups:
-            sorted_players_in_group = update_group_standings_logic(group)
-            group.players = sorted_players_in_group
-            for i, player in enumerate(sorted_players_in_group):
-                if i < qualifiers_per_group:
-                    qualified.append(player.name)
+    if target % num_groups == 0:
+        per_group = target // num_groups
+        for g in groups:
+            sorted_p = update_group_standings_logic(g)
+            g.players = sorted_p
+            for i, p in enumerate(sorted_p):
+                if i < per_group: qualified.append(p.name)
     else:
-        logging.info(f"Cas 'Complexe' détecté. Règle: Meilleurs suivants.")
-        base_qualifiers_per_group = math.floor(targetQualified / num_groups)
-        best_finishers_pool = []
-        logging.info(f"Mode de qualification: Top {base_qualifiers_per_group} + meilleurs suivants.")
-        for group in groups:
-            sorted_players_in_group = update_group_standings_logic(group)
-            group.players = sorted_players_in_group 
-            for i, player in enumerate(sorted_players_in_group):
-                if i < base_qualifiers_per_group:
-                    qualified.append(player.name)
-                else:
-                    best_finishers_pool.append(player) 
-        needed = targetQualified - len(qualified)
-        if needed > 0 and best_finishers_pool:
-            best_finishers_pool.sort(key=lambda p: (p.points, p.goalDiff, p.goalsFor), reverse=True)
-            qualified.extend(p.name for p in best_finishers_pool[:needed])
-    logging.info(f"Total qualifiés générés: {len(qualified)}")
-    return qualified[:targetQualified]
+        base = math.floor(target / num_groups)
+        pool = []
+        for g in groups:
+            sorted_p = update_group_standings_logic(g)
+            g.players = sorted_p
+            for i, p in enumerate(sorted_p):
+                if i < base: qualified.append(p.name)
+                else: pool.append(p)
+        needed = target - len(qualified)
+        if needed > 0 and pool:
+            pool.sort(key=lambda p: (p.points, p.goalDiff, p.goalsFor), reverse=True)
+            qualified.extend(p.name for p in pool[:needed])
+            
+    return qualified[:target]
 
 
 def generate_knockout_matches_logic(qualified_names: List[str], single_round: bool = False) -> List[KnockoutMatch]:
