@@ -373,24 +373,57 @@ def determine_qualifiers_logic(groups: List[Group], total_players: int) -> List[
     logging.info(f"Total qualifiés générés: {len(qualified)}")
     return qualified[:targetQualified]
 
-def generate_knockout_matches_logic(qualified_player_names: List[str]) -> List[KnockoutMatch]:
-    num = len(qualified_player_names)
+def generate_knockout_matches_logic(qualified_names: List[str], single_round: bool = False) -> List[KnockoutMatch]:
+    """
+    Génère les matchs.
+    Si single_round=True (mode 2v2), ne génère QUE le prochain tour, pas tout l'arbre.
+    """
+    num = len(qualified_names)
     if num == 0: return []
-    shuffled = random.sample(qualified_player_names, num)
-    total_rounds = math.ceil(math.log2(num)) if num > 0 else 0
+    
+    shuffled = random.sample(qualified_names, num)
+    
+    # Calcul du nombre de tours total théorique
+    try:
+        total_rounds = math.ceil(math.log2(num))
+    except ValueError: 
+        total_rounds = 0
+
     matches = []
+    
+    # Générer le tour actuel (ex: 16 joueurs -> 8 matchs)
     first_round_matches = num // 2
-    round_idx = 0 
+    
+    # En mode single_round (2v2), on considère que c'est toujours un "round 0" relatif
+    # Ou alors on garde la logique de rounds (8èmes, quarts...) ?
+    # Pour simplifier l'affichage, on va dire que le round index dépend du nombre de joueurs restants.
+    # ex: 16 joueurs -> 8èmes de finale -> round index = total_rounds - 4 (si total=4 pour finale)
+    # Simplifions : round 0 = 1er tour joué.
+    round_index = 0 
+
     for i in range(first_round_matches):
-        matches.append(KnockoutMatch(id=f"match_{uuid.uuid4()}", round=round_idx, matchIndex=i, player1=shuffled[i*2], player2=shuffled[i*2+1]))
-    matches_in_round = first_round_matches // 2
-    while matches_in_round >= 1:
-        round_idx += 1
-        for i in range(matches_in_round):
-             matches.append(KnockoutMatch(id=f"match_{uuid.uuid4()}", round=round_idx, matchIndex=i))
-        matches_in_round //= 2
-    if num >= 4:
-        matches.append(KnockoutMatch(id=f"match_third_place_{uuid.uuid4()}", round=total_rounds-1, matchIndex=1, player1=None, player2=None))
+        matches.append(KnockoutMatch(
+            id=f"match_{uuid.uuid4()}", 
+            round=round_index, 
+            matchIndex=i, 
+            player1=shuffled[i*2], 
+            player2=shuffled[i*2+1]
+        ))
+    
+    # Si on n'est PAS en mode "tour par tour" (donc 1v1 classique), on génère les slots vides pour la suite
+    if not single_round:
+        matches_in_round = first_round_matches // 2
+        while matches_in_round >= 1:
+            round_index += 1
+            for i in range(matches_in_round):
+                 matches.append(KnockoutMatch(id=f"match_{uuid.uuid4()}", round=round_index, matchIndex=i))
+            matches_in_round //= 2
+        
+        # Petite finale (seulement en mode classique complet)
+        if num >= 4:
+             final_round_index = total_rounds - 1
+             matches.append(KnockoutMatch(id=f"match_third_place_{uuid.uuid4()}", round=final_round_index, matchIndex=1, player1=None, player2=None))
+
     return matches
 
 # --- Routes API (Tournoi) ---
@@ -548,21 +581,71 @@ async def update_match_score(tournament_id: str, match_id: str, scores: ScoreUpd
 
 @api_router.post("/tournament/{tournament_id}/complete_groups", response_model=Tournament)
 async def complete_groups_and_draw_knockout(tournament_id: str):
-    # ... (Code inchangé) ...
-    t = await tournaments_collection.find_one({"_id": tournament_id})
-    if not t: raise HTTPException(status_code=404, detail="Tournoi non trouvé")
-    tournament = Tournament(**t)
+    tournament_data = await tournaments_collection.find_one({"_id": tournament_id})
+    if not tournament_data:
+        raise HTTPException(status_code=404, detail="Tournoi non trouvé")
+    tournament = Tournament(**tournament_data)
+    
+    # Vérifications (inchangées)
     if not all(m.played for g in tournament.groups for m in g.matches):
         raise HTTPException(status_code=400, detail="Tous les matchs de poule ne sont pas encore joués")
     if tournament.currentStep != "groups":
          raise HTTPException(status_code=400, detail="Action invalide")
-    qualif = determine_qualifiers_logic(tournament.groups, len(tournament.players))
-    tournament.qualifiedPlayers = qualif
+    
+    # 1. Déterminer les "Entités" qualifiées (Joueurs en 1v1, Équipes en 2v2)
+    qualified_entities = determine_qualifiers_logic(tournament.groups, len(tournament.players))
+    
+    final_qualified_list = qualified_entities # Par défaut (1v1)
+
+    # --- LOGIQUE SPÉCIALE 2v2 (RESHUFFLE) ---
+    if tournament.format == "2v2":
+        logging.info("Format 2v2 détecté : Dissolution des équipes et nouveau tirage.")
+        individual_pool = []
+        
+        # Récupérer tous les joueurs individuels des équipes qualifiées
+        # On doit chercher dans les groupes pour trouver les objets PlayerStats complets (qui contiennent real_players)
+        all_stats_map = {p.name: p for g in tournament.groups for p in g.players}
+        
+        for team_name in qualified_entities:
+            stats = all_stats_map.get(team_name)
+            if stats and stats.real_players:
+                individual_pool.extend(stats.real_players)
+            else:
+                # Fallback de sécurité (ne devrait pas arriver si les données sont propres)
+                logging.warning(f"Impossible de trouver les joueurs réels pour l'équipe {team_name}")
+                parts = team_name.split(' + ') # Tentative de split manuel
+                individual_pool.extend(parts)
+        
+        # Mélange des individus
+        random.shuffle(individual_pool)
+        
+        # Création des NOUVELLES équipes
+        new_teams = []
+        for i in range(0, len(individual_pool), 2):
+            if i+1 < len(individual_pool):
+                new_teams.append(f"{individual_pool[i]} + {individual_pool[i+1]}")
+            else:
+                # Cas impair (ne devrait pas arriver si inscription paire)
+                new_teams.append(individual_pool[i])
+        
+        final_qualified_list = new_teams
+        logging.info(f"Nouvelles équipes formées pour le Round 1: {final_qualified_list}")
+
+    # ----------------------------------------
+
+    tournament.qualifiedPlayers = final_qualified_list
     tournament.currentStep = "qualified"
-    knockout_matches = generate_knockout_matches_logic(qualif)
+    
+    # Génération du tableau
+    # Si 2v2, on passe single_round=True
+    is_2v2 = (tournament.format == "2v2")
+    knockout_matches = generate_knockout_matches_logic(final_qualified_list, single_round=is_2v2)
+    
     tournament.knockoutMatches = knockout_matches
     tournament.currentStep = "knockout"
     tournament.updatedAt = datetime.now(timezone.utc)
+    
+    # ... (Sauvegarde inchangée) ...
     update_data = {
         "$set": {
             "groups": [g.model_dump() for g in tournament.groups],

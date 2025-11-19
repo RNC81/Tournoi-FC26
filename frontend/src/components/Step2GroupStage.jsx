@@ -143,7 +143,7 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
                    <table className="w-full text-sm">
                      <thead>
                        <tr className="border-b border-gray-700">
-                         <th className="text-left py-2 px-2 text-gray-400">Joueur</th>
+                         <th className="text-left py-2 px-2 text-gray-400">Joueur / Équipe</th>
                          <th className="hidden sm:table-cell text-center py-2 px-1 text-gray-400">J</th>
                          <th className="hidden sm:table-cell text-center py-2 px-1 text-gray-400">G</th>
                          <th className="hidden sm:table-cell text-center py-2 px-1 text-gray-400">N</th>
@@ -225,7 +225,7 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
                    <thead>
                      <tr className="border-b border-gray-700">
                        <th className="text-left py-2 px-2 text-gray-400">Rank</th>
-                       <th className="text-left py-2 px-2 text-gray-400">Joueur</th>
+                       <th className="text-left py-2 px-2 text-gray-400">Joueur / Équipe</th>
                        <th className="text-center py-2 px-1 text-gray-400">Poule</th>
                        <th className="text-center py-2 px-1 text-gray-400">Pts</th>
                        <th className="text-center py-2 px-1 text-gray-400">Diff</th>
