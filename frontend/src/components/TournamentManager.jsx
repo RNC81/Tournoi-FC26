@@ -1,6 +1,5 @@
 /* Fichier: frontend/src/components/TournamentManager.jsx */
-import { useState, useEffect, useCallback, useRef } from 'react'; // Ajout de useRef
-import { useParams } from 'react-router-dom';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Step1Registration from './Step1Registration';
 import Step2GroupStage from './Step2GroupStage';
 import Step3Qualification from './Step3Qualification';
@@ -37,7 +36,8 @@ const TournamentManager = ({ isAdmin, initialData }) => {
   const [isLoading, setIsLoading] = useState(!initialData); 
   const [isDeleting, setIsDeleting] = useState(false);
   
-  // Pour détecter les changements d'étape et notifier
+  // NOUVEAU : On garde en mémoire la dernière date de mise à jour
+  const lastUpdatedAtRef = useRef(initialData?.updatedAt || null);
   const prevStepRef = useRef(currentStep);
 
   const { toast } = useToast();
@@ -50,21 +50,25 @@ const TournamentManager = ({ isAdmin, initialData }) => {
         return;
     }
     
+    // --- OPTIMISATION : Si la date n'a pas changé, on ne fait RIEN ---
+    // (Sauf si c'est le tout premier chargement)
+    if (lastUpdatedAtRef.current === data.updatedAt && !isLoading) {
+        return; 
+    }
+    lastUpdatedAtRef.current = data.updatedAt;
+    // ------------------------------------------------------------------
+
     const newStep = data.currentStep || "config";
     
-    // --- NOUVEAU : Notification de changement d'étape ---
     if (prevStepRef.current !== newStep && prevStepRef.current !== "loading") {
-        // Si on passe des groupes à la suite
         if (prevStepRef.current === "groups" && (newStep === "qualified" || newStep === "knockout")) {
             toast({ title: "Mise à jour !", description: "La phase de poules est terminée. Place à la suite !", duration: 5000 });
         }
-        // Si on a un vainqueur
         if (data.winner && !winner) {
              toast({ title: "Tournoi terminé !", description: `Félicitations à ${data.winner} !`, duration: 5000 });
         }
     }
-    prevStepRef.current = newStep; // Mémorise l'étape
-    // ----------------------------------------------------
+    prevStepRef.current = newStep; 
 
     if (newStep !== currentStep || data.winner !== winner) {
        console.log("Updating full state from API data:", data);
@@ -103,10 +107,9 @@ const TournamentManager = ({ isAdmin, initialData }) => {
     setThirdPlace(data.thirdPlace || null); 
     
     setIsLoading(false); 
-  }, [currentStep, winner, toast]); // toast ajouté aux dépendances
+  }, [currentStep, winner, toast, isLoading]); 
 
 
-  // 1. CHARGEMENT INITIAL
   useEffect(() => {
     if (initialData) {
         updateFullTournamentState(initialData);
@@ -128,24 +131,20 @@ const TournamentManager = ({ isAdmin, initialData }) => {
     }
   }, [initialData, tournamentId, updateFullTournamentState]);
 
-  // 2. POLLING (Rafraîchissement Auto)
   useEffect(() => {
     if (isAdmin || !tournamentId) {
       return;
     }
 
-    // --- MODIFICATION : Intervalle réduit à 5000ms (5 secondes) ---
     const intervalId = setInterval(async () => {
-      // console.log(`Spectator: Polling tournament ${tournamentId}...`); // Commenté pour moins de logs
       try {
         const data = await getTournament(tournamentId);
         if (data) {
           updateFullTournamentState(data);
         }
       } catch (error) {
-        // Ignorer les erreurs de polling
       }
-    }, 5000); // 5 secondes pour plus de réactivité
+    }, 5000); 
 
     return () => clearInterval(intervalId);
   }, [isAdmin, tournamentId, updateFullTournamentState]);
@@ -160,7 +159,6 @@ const TournamentManager = ({ isAdmin, initialData }) => {
 
   const handleDeleteTournament = async () => {
         if (!isAdmin || !tournamentId) return; 
-        
         setIsDeleting(true);
         try {
             await deleteTournament(tournamentId);
@@ -172,8 +170,7 @@ const TournamentManager = ({ isAdmin, initialData }) => {
         }
   };
   
-  // (handleResetTournament supprimé car remplacé par delete)
-  const handleResetTournament = () => { /* Legacy placeholder if needed */ };
+  const handleResetTournament = () => { /* Legacy placeholder */ };
 
   const handleAdminLogout = () => {
       localStorage.removeItem(ADMIN_STATUS_LS_KEY);
@@ -237,12 +234,8 @@ const TournamentManager = ({ isAdmin, initialData }) => {
                     {currentStep !== 'config' && (
                          <AlertDialog>
                          <AlertDialogTrigger asChild>
-                           <Button
-                             variant="destructive" 
-                             className="px-6 py-2 rounded-lg transition-all duration-300 font-medium w-full sm:w-auto" 
-                           >
-                             <Trash2 className="w-4 h-4 mr-2" />
-                             Supprimer
+                           <Button variant="destructive" className="px-6 py-2 rounded-lg transition-all duration-300 font-medium w-full sm:w-auto">
+                             <Trash2 className="w-4 h-4 mr-2" /> Supprimer
                            </Button>
                          </AlertDialogTrigger>
                          <AlertDialogContent className="bg-gray-900 border-gray-700 text-gray-100">
@@ -254,18 +247,12 @@ const TournamentManager = ({ isAdmin, initialData }) => {
                            </AlertDialogHeader>
                            <AlertDialogFooter>
                              <AlertDialogCancel className="text-gray-300 border-gray-600 hover:bg-gray-700">Annuler</AlertDialogCancel>
-                             <AlertDialogAction onClick={handleDeleteTournament} className="bg-red-600 hover:bg-red-700 text-white">
-                               Confirmer la suppression
-                             </AlertDialogAction>
+                             <AlertDialogAction onClick={handleDeleteTournament} className="bg-red-600 hover:bg-red-700 text-white">Confirmer la suppression</AlertDialogAction>
                            </AlertDialogFooter>
                          </AlertDialogContent>
                        </AlertDialog>
                     )}
-                     <Button
-                        variant="outline"
-                        onClick={() => window.location.href = '/dashboard'}
-                        className="px-6 py-2 rounded-lg transition-all duration-300 font-medium w-full sm:w-auto border-gray-600 text-gray-300 hover:bg-gray-800"
-                     >
+                     <Button variant="outline" onClick={() => window.location.href = '/dashboard'} className="px-6 py-2 rounded-lg transition-all duration-300 font-medium w-full sm:w-auto border-gray-600 text-gray-300 hover:bg-gray-800">
                         <LogOut className="w-4 h-4 mr-2" /> Dashboard
                      </Button>
                 </div>

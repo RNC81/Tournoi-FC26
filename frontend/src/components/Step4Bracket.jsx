@@ -33,21 +33,15 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
     setThirdPlaceWinner(thirdPlace);
   }, [thirdPlace]);
 
-  // --- CALCULS CORRIGÉS ---
   const mainBracketMatches = matches.filter(m => m && !m.id.startsWith("match_third_place_"));
   const maxRound = mainBracketMatches.length > 0 ? Math.max(0, ...mainBracketMatches.map((m) => m ? m.round : -1)) : -1;
   
-  // Pour déterminer le nom du tour, on a besoin de savoir combien de joueurs étaient là au départ du bracket
-  // On le déduit du round 0 : s'il y a 8 matchs au round 0, c'était des 8èmes (16 équipes/joueurs)
   const matchesInRound0 = mainBracketMatches.filter(m => m.round === 0).length;
   const initialParticipants = matchesInRound0 * 2;
-  
-  // Nombre total de tours théorique (ex: 16 participants -> 4 tours: 8e, 1/4, 1/2, F)
   const totalRoundsTheoretical = Math.log2(initialParticipants);
 
   const isFinalOrThirdPlace = selectedMatch?.id?.startsWith("match_third_place_") || selectedMatch?.round === (totalRoundsTheoretical - 1);
 
-  // --- HANDLERS (Inchangés) ---
   const handleMatchClick = (match) => {
     if (!isAdmin) return;
     if (!match || !match.player1 || !match.player2) { 
@@ -67,15 +61,18 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
     }
     const s1 = parseInt(score1);
     const s2 = parseInt(score2);
+
     if (isNaN(s1) || isNaN(s2) || s1 < 0 || s2 < 0) {
       toast({ title: 'Erreur', description: 'Scores invalides.', variant: 'destructive' });
       return;
     }
+
     if (isFinalOrThirdPlace && s1 === s2) {
       toast({ title: 'Erreur', description: 'Match nul interdit pour la Finale et la 3ème place.', variant: 'destructive' });
       return;
     }
     if (!selectedMatch) return;
+
     setIsSavingScore(true);
     try {
       const updatedTournament = await updateScore(tournamentId, selectedMatch.id, s1, s2);
@@ -127,12 +124,10 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
       }
   };
 
-  // --- LOGIQUE BOUTON SUIVANT ---
   const currentRoundMatches = mainBracketMatches.filter(m => m.round === maxRound);
   const isCurrentRoundFinished = currentRoundMatches.length > 0 && currentRoundMatches.every(m => m.played && m.winner);
   const showNextRoundButton = isAdmin && isCurrentRoundFinished && !champion;
 
-  // --- PREPARATION DONNEES AFFICHAGE ---
   const getRoundName = (round, total) => {
     if (total === 0) return "Phase Finale";
     const roundsFromEnd = total - round;
@@ -144,7 +139,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
   };
 
   const roundsData = Array.from({ length: maxRound + 1 }).map((_, roundIndex) => ({
-    name: getRoundName(roundIndex, totalRoundsTheoretical), // Utilise le total théorique !
+    name: getRoundName(roundIndex, totalRoundsTheoretical), 
     matches: mainBracketMatches.filter(m => m && m.round === roundIndex) 
   }));
 
@@ -209,12 +204,12 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
         </div>
       )}
 
-      {champion && thirdPlaceWinner && (
+      {/* Affichage du Podium (MODIFIÉ : s'affiche si champion existe, même sans 3e place) */}
+      {champion && (
         <div className="mb-12 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-8 shadow-xl border border-gray-700">
           <h3 className="text-3xl font-bold text-center text-gray-200 mb-8">Podium Final</h3>
           <div className="flex flex-col md:flex-row justify-around items-center gap-8">
             {(() => { 
-              // On cherche le dernier match joué (la finale)
               const finalMatch = matches.find(m => m && m.round === maxRound && !m.id.startsWith("match_third_place_")); 
               const secondPlace = finalMatch && finalMatch.player1 && finalMatch.player2 
                 ? (finalMatch.player1 === champion ? finalMatch.player2 : finalMatch.player1)
@@ -234,7 +229,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
                   <div className="text-center order-3 md:order-3">
                     <p className="text-6xl mb-2">🥉</p>
                     <p className="text-2xl font-semibold text-orange-400">3ème Place</p>
-                    <p className="text-3xl font-bold text-gray-100 mt-1">{thirdPlaceWinner}</p>
+                    <p className="text-3xl font-bold text-gray-100 mt-1">{thirdPlaceWinner || 'Non déterminé'}</p>
                   </div>
                 </>
               ); 
@@ -243,6 +238,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
         </div> 
       )} 
 
+      {/* Le reste du tableau (toujours visible) ... */}
       {matches.length > 0 && (
         <div className="overflow-x-auto pb-4">
             <div className="flex gap-8 min-w-max px-4">
@@ -256,6 +252,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
                       </div>
                   )
               ))}
+              {/* Petite finale affichée si elle existe */}
               {thirdPlaceMatch && (
                  <div className="flex flex-col w-64 sm:w-72 flex-shrink-0"> 
                    <h3 className="text-xl font-bold text-orange-400 text-center mb-4 pb-2 border-b-2 border-orange-700">Match 3ème Place</h3>
@@ -273,6 +270,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
             </div> 
         </div> 
       )} 
+      
        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
          <DialogContent className="bg-gray-900 border-gray-700">
            <DialogHeader><DialogTitle className="text-2xl text-white">{selectedMatch && (<>{selectedMatch.player1} <span className="text-cyan-400 mx-2">vs</span> {selectedMatch.player2}</>)}</DialogTitle></DialogHeader>
