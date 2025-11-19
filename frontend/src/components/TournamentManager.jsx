@@ -36,10 +36,7 @@ const TournamentManager = ({ isAdmin, initialData }) => {
   const [isLoading, setIsLoading] = useState(!initialData); 
   const [isDeleting, setIsDeleting] = useState(false);
   
-  // NOUVEAU : On garde en mémoire la dernière date de mise à jour
-  const lastUpdatedAtRef = useRef(initialData?.updatedAt || null);
   const prevStepRef = useRef(currentStep);
-
   const { toast } = useToast();
 
   const updateFullTournamentState = useCallback((data) => {
@@ -50,14 +47,9 @@ const TournamentManager = ({ isAdmin, initialData }) => {
         return;
     }
     
-    // --- OPTIMISATION : Si la date n'a pas changé, on ne fait RIEN ---
-    // (Sauf si c'est le tout premier chargement)
-    if (lastUpdatedAtRef.current === data.updatedAt && !isLoading) {
-        return; 
-    }
-    lastUpdatedAtRef.current = data.updatedAt;
-    // ------------------------------------------------------------------
-
+    // --- CORRECTION : Suppression de l'optimisation bloquante ---
+    // On laisse React gérer le diffing.
+    
     const newStep = data.currentStep || "config";
     
     if (prevStepRef.current !== newStep && prevStepRef.current !== "loading") {
@@ -71,7 +63,7 @@ const TournamentManager = ({ isAdmin, initialData }) => {
     prevStepRef.current = newStep; 
 
     if (newStep !== currentStep || data.winner !== winner) {
-       console.log("Updating full state from API data:", data);
+       // console.log("Updating full state from API data:", data); // Moins de logs
     }
 
     const tId = data._id || data.id;
@@ -107,7 +99,7 @@ const TournamentManager = ({ isAdmin, initialData }) => {
     setThirdPlace(data.thirdPlace || null); 
     
     setIsLoading(false); 
-  }, [currentStep, winner, toast, isLoading]); 
+  }, [currentStep, winner, toast]); 
 
 
   useEffect(() => {

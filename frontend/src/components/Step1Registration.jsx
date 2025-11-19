@@ -1,6 +1,6 @@
 /* Fichier: frontend/src/components/Step1Registration.jsx */
 import { useState } from 'react';
-import { Users, ArrowRight, GitBranch, Type, Swords, Shuffle } from 'lucide-react'; 
+import { Users, ArrowRight, GitBranch, Swords, Shuffle } from 'lucide-react'; 
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -25,7 +25,7 @@ const Step1Registration = ({ onComplete, isAdmin }) => {
   const [format, setFormat] = useState('1v1'); 
   const [playerNames, setPlayerNames] = useState([]);
   const [showNameInputs, setShowNameInputs] = useState(false);
-  const [showTeamPreview, setShowTeamPreview] = useState(false); // <-- NOUVEAU ETAT
+  const [showTeamPreview, setShowTeamPreview] = useState(false); 
   const [isSubmitting, setIsSubmitting] = useState(false); 
   const { toast } = useToast();
 
@@ -66,7 +66,7 @@ const Step1Registration = ({ onComplete, isAdmin }) => {
     setPlayerNames(newNames);
   };
 
-  // --- NOUVELLE FONCTION : Prévisualiser ---
+  // --- FONCTION : Prévisualiser ---
   const handlePreviewTeams = () => {
     const filledNames = playerNames.map(name => name.trim()).filter(name => name !== '');
     if (filledNames.length !== playerNames.length) {
@@ -81,6 +81,11 @@ const Step1Registration = ({ onComplete, isAdmin }) => {
 
   const handleSubmit = async () => {
     const filledNames = playerNames.map(name => name.trim()).filter(name => name !== '');
+
+    if (filledNames.length !== playerNames.length) {
+      toast({ title: 'Erreur', description: 'Veuillez remplir tous les noms de joueurs.', variant: 'destructive' });
+      return;
+    }
     
     // En 2v2, on vérifie par rapport au nombre d'ÉQUIPES
     const numEntities = format === '2v2' ? filledNames.length / 2 : filledNames.length;
@@ -95,8 +100,7 @@ const Step1Registration = ({ onComplete, isAdmin }) => {
     setIsSubmitting(true);
     try {
       const finalName = tournamentName.trim() || "Tournoi EA FC";
-      // Note: En 2v2, playerNames est déjà mélangé par handlePreviewTeams, 
-      // et le backend respectera cet ordre.
+      // Note: En 2v2, playerNames est déjà mélangé par handlePreviewTeams
       const tournamentData = await createTournament(filledNames, finalNumGroups, finalName, format);
       
       toast({ title: 'Succès', description: `Tournoi "${finalName}" créé !` });
