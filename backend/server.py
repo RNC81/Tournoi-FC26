@@ -55,7 +55,8 @@ auth_router = APIRouter(prefix="/api/auth")
 # --- Modèles Pydantic ---
 
 class PlayerStats(BaseModel):
-    name: str
+    name: str # Dans le cas 2v2, ce sera "J1 + J2"
+    real_players: Optional[List[str]] = None # Pour stocker les vrais noms si besoin plus tard
     played: int = 0
     won: int = 0
     drawn: int = 0
@@ -93,7 +94,8 @@ class KnockoutMatch(BaseModel):
 class Tournament(BaseModel):
     id: str = Field(default_factory=lambda: f"tournoi_{uuid.uuid4()}", alias="_id")
     name: str = "Tournoi EA FC"
-    players: List[str]
+    format: str = "1v1" # "1v1" ou "2v2"
+    players: List[str] # Liste complète des joueurs individuels
     groups: List[Group] = []
     knockoutMatches: List[KnockoutMatch] = []
     qualifiedPlayers: List[str] = []
@@ -102,7 +104,7 @@ class Tournament(BaseModel):
     currentStep: str = "config"
     createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    owner_username: Optional[str] = "Ancien Admin" 
+    owner_username: Optional[str] = "Ancien Admin"
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -114,6 +116,7 @@ class TournamentCreateRequest(BaseModel):
     playerNames: List[str]
     tournamentName: Optional[str] = "Tournoi EA FC"
     numGroups: Optional[int] = None
+    format: Optional[str] = "1v1" # Ajout du format
 
     @field_validator('playerNames')
     def check_player_count(cls, v):
@@ -251,32 +254,67 @@ async def login_for_access_token(user_in: UserLogin):
 
 # --- Fonctions Utilitaires (Tournoi) ---
 
-def create_groups_logic(players: List[str], num_groups: Optional[int] = None) -> List[Group]:
-    totalPlayers = len(players)
-    if num_groups is None or num_groups <= 1:
-        num_groups = math.ceil(totalPlayers / 4)
-        if totalPlayers > 8 and totalPlayers % 4 in [1, 2]:
-             num_groups = math.floor(totalPlayers / 4) 
-        logging.info(f"Calcul auto: {totalPlayers} joueurs -> {num_groups} poules")
+def create_groups_logic(players: List[str], num_groups: Optional[int] = None, format: str = "1v1") -> List[Group]:
+    # 1. Préparation des "Entités" (Joueurs ou Équipes)
+    entities = []
+    
+    if format == "2v2":
+        # Logique de création d'équipes aléatoires
+        shuffled_players = random.sample(players, len(players))
+        if len(shuffled_players) % 2 != 0:
+            # Ne devrait pas arriver si le frontend bloque, mais sécurité
+            raise ValueError("Nombre de joueurs impair impossible pour le 2v2")
+            
+        for i in range(0, len(shuffled_players), 2):
+            p1 = shuffled_players[i]
+            p2 = shuffled_players[i+1]
+            team_name = f"{p1} + {p2}"
+            # On crée un objet PlayerStats spécial
+            entities.append(PlayerStats(
+                name=team_name,
+                real_players=[p1, p2]
+            ))
+        logging.info(f"Mode 2v2: {len(entities)} équipes générées.")
+        
     else:
-        logging.info(f"Calcul manuel: {totalPlayers} joueurs -> {num_groups} poules")
-    shuffled = random.sample(players, totalPlayers)
-    base_size = totalPlayers // num_groups
-    remainder = totalPlayers % num_groups
+        # Mode 1v1 Classique
+        entities = [PlayerStats(name=p) for p in players]
+        logging.info(f"Mode 1v1: {len(entities)} joueurs.")
+
+    totalEntities = len(entities)
+    
+    # 2. Calcul du nombre de poules (basé sur le nombre d'équipes/joueurs)
+    if num_groups is None or num_groups <= 1:
+        num_groups = math.ceil(totalEntities / 4)
+        if totalEntities > 8 and totalEntities % 4 in [1, 2]:
+             num_groups = math.floor(totalEntities / 4) 
+        logging.info(f"Calcul auto: {totalEntities} entités -> {num_groups} poules")
+    else:
+        logging.info(f"Calcul manuel: {totalEntities} entités -> {num_groups} poules")
+    
+    # 3. Répartition dans les poules
+    # On re-mélange les entités pour la répartition dans les poules
+    shuffled_entities = random.sample(entities, totalEntities)
+    
+    base_size = totalEntities // num_groups
+    remainder = totalEntities % num_groups
     groupSizes = []
     for i in range(num_groups):
         groupSizes.append(base_size + 1 if i < remainder else base_size)
+        
     groups = []
-    playerIndex = 0
+    entityIndex = 0
     for i, size in enumerate(groupSizes):
-        group_player_names = shuffled[playerIndex : playerIndex + size]
-        playerIndex += size
-        group_players_stats = [PlayerStats(name=name) for name in group_player_names]
+        group_entities = shuffled_entities[entityIndex : entityIndex + size]
+        entityIndex += size
+        
         matches = []
-        for j in range(len(group_player_names)):
-            for k in range(j + 1, len(group_player_names)):
-                matches.append(GroupMatch(player1=group_player_names[j], player2=group_player_names[k]))
-        groups.append(Group(name=chr(65 + i), players=group_players_stats, matches=matches))
+        for j in range(len(group_entities)):
+            for k in range(j + 1, len(group_entities)):
+                matches.append(GroupMatch(player1=group_entities[j].name, player2=group_entities[k].name))
+                
+        groups.append(Group(name=chr(65 + i), players=group_entities, matches=matches))
+        
     return groups
 
 def update_group_standings_logic(group: Group) -> List[PlayerStats]:
@@ -332,6 +370,7 @@ def determine_qualifiers_logic(groups: List[Group], total_players: int) -> List[
         if needed > 0 and pool:
             pool.sort(key=lambda p: (p.points, p.goalDiff, p.goalsFor), reverse=True)
             qualified.extend(p.name for p in pool[:needed])
+    logging.info(f"Total qualifiés générés: {len(qualified)}")
     return qualified[:targetQualified]
 
 def generate_knockout_matches_logic(qualified_player_names: List[str]) -> List[KnockoutMatch]:
@@ -365,13 +404,19 @@ async def create_tournament(
     if len(set(player_names)) != len(player_names):
         raise HTTPException(status_code=400, detail="Les noms des joueurs doivent être uniques")
     
-    generated_groups = create_groups_logic(player_names, request.numGroups)
+    # Validation spécifique pour le 2v2
+    if request.format == "2v2" and len(player_names) % 2 != 0:
+        raise HTTPException(status_code=400, detail="Pour un tournoi 2v2, le nombre de joueurs doit être pair.")
+
+    generated_groups = create_groups_logic(player_names, request.numGroups, request.format or "1v1")
+    
     new_tournament = Tournament(
         name=request.tournamentName or f"Tournoi du {datetime.now(timezone.utc).strftime('%d/%m/%Y')}",
         players=player_names,
         currentStep="groups",
         groups=generated_groups,
-        owner_username=current_user.username
+        owner_username=current_user.username,
+        format=request.format or "1v1" # Sauvegarde du format
     )
     
     t_dict = new_tournament.model_dump(by_alias=True)
@@ -381,49 +426,33 @@ async def create_tournament(
     if created: created["_id"] = str(created["_id"])
     return Tournament(**created)
 
-# --- NOUVELLE ROUTE DE SUPPRESSION ---
+# ... (LES AUTRES ROUTES : get_public_tournaments, delete, etc. RESTENT INCHANGÉES) ...
+
 @api_router.delete("/tournament/{tournament_id}", status_code=204)
 async def delete_tournament(
     tournament_id: str,
     current_user: UserInDB = Depends(get_current_user)
 ):
-    """
-    Supprime un tournoi.
-    Seul le propriétaire (owner_username) peut le supprimer.
-    """
     tournament_data = await tournaments_collection.find_one({"_id": tournament_id})
     if not tournament_data:
         raise HTTPException(status_code=404, detail="Tournoi non trouvé")
     
-    # Vérification de propriété
     if tournament_data.get("owner_username") != current_user.username:
         raise HTTPException(status_code=403, detail="Vous n'avez pas la permission de supprimer ce tournoi.")
     
-    # Suppression
     await tournaments_collection.delete_one({"_id": tournament_id})
-    logging.info(f"Tournoi {tournament_id} supprimé par {current_user.username}")
-    return # Renvoie 204 No Content
-
-# --- FIN NOUVELLE ROUTE ---
+    return 
 
 @api_router.get("/tournaments/public", response_model=List[Tournament])
 async def get_public_tournaments():
-    tournaments = await tournaments_collection.find(
-        {}, 
-        sort=[("createdAt", -1)]
-    ).limit(20).to_list(20)
-    for t in tournaments:
-        t["_id"] = str(t["_id"])
+    tournaments = await tournaments_collection.find({}, sort=[("createdAt", -1)]).limit(20).to_list(20)
+    for t in tournaments: t["_id"] = str(t["_id"])
     return tournaments
 
 @api_router.get("/tournaments/my-tournaments", response_model=List[Tournament])
 async def get_my_tournaments(current_user: UserInDB = Depends(get_current_user)):
-    tournaments = await tournaments_collection.find(
-        {"owner_username": current_user.username},
-        sort=[("createdAt", -1)]
-    ).to_list(1000)
-    for t in tournaments:
-        t["_id"] = str(t["_id"])
+    tournaments = await tournaments_collection.find({"owner_username": current_user.username}, sort=[("createdAt", -1)]).to_list(1000)
+    for t in tournaments: t["_id"] = str(t["_id"])
     return tournaments
 
 @api_router.get("/tournament/{tournament_id}", response_model=Tournament)
@@ -443,11 +472,11 @@ async def draw_groups(tournament_id: str):
 
 @api_router.post("/tournament/{tournament_id}/match/{match_id}/score", response_model=Tournament)
 async def update_match_score(tournament_id: str, match_id: str, scores: ScoreUpdateRequest):
+    # ... (Code existant de update_match_score inchangé pour l'instant) ...
     t = await tournaments_collection.find_one({"_id": tournament_id})
     if not t: raise HTTPException(status_code=404, detail="Tournoi non trouvé")
     tournament = t
     match_found = False
-    
     if tournament.get("groups"):
         for group in tournament["groups"]:
             for match in group.get("matches", []):
@@ -461,7 +490,6 @@ async def update_match_score(tournament_id: str, match_id: str, scores: ScoreUpd
                     group["players"] = [p.model_dump() for p in updated_standings]
                     break
             if match_found: break
-    
     if not match_found and tournament.get("knockoutMatches"):
         for match in tournament["knockoutMatches"]:
              if match.get("id") == match_id:
@@ -482,49 +510,36 @@ async def update_match_score(tournament_id: str, match_id: str, scores: ScoreUpd
                      is_final_or_third = match["id"].startswith("match_third_place_") or (match["round"] == final_round and final_round >= 0)
                      if is_final_or_third: raise HTTPException(status_code=400, detail="Match nul interdit en phase finale")
                      else: raise HTTPException(status_code=400, detail="Match nul interdit")
-                
                 match["winner"] = winner
                 match_found = True
-                
-                current_round = match["round"]
-                current_idx = match["matchIndex"]
+                current_round = match["round"]; current_idx = match["matchIndex"]
                 qualif = tournament.get("qualifiedPlayers", [])
                 total_rounds = math.ceil(math.log2(len(qualif))) if qualif else 0
                 if total_rounds == 0:
                      all_rounds = [m["round"] for m in tournament["knockoutMatches"] if not m["id"].startswith("match_third_place_")]
                      if all_rounds: total_rounds = max(all_rounds) + 1
-                
                 semi_final = total_rounds - 2 if total_rounds > 0 else -1
                 final_round = total_rounds - 1 if total_rounds > 0 else -1
-
-                if match["id"].startswith("match_third_place_"):
-                    tournament["thirdPlace"] = winner
+                if match["id"].startswith("match_third_place_"): tournament["thirdPlace"] = winner
                 elif current_round == semi_final and len(qualif) >= 4:
                     petite = next((m for m in tournament["knockoutMatches"] if m["id"].startswith("match_third_place_")), None)
                     if petite:
                         if not petite.get("player1"): petite["player1"] = loser
                         elif not petite.get("player2"): petite["player2"] = loser
-                    
-                    next_round = current_round + 1
-                    next_idx = current_idx // 2
+                    next_round = current_round + 1; next_idx = current_idx // 2
                     finale = next((m for m in tournament["knockoutMatches"] if m["round"] == next_round and m["matchIndex"] == next_idx), None)
                     if finale:
                         if current_idx % 2 == 0: finale["player1"] = winner
                         else: finale["player2"] = winner
-                elif current_round == final_round and final_round != -1:
-                    tournament["winner"] = winner
-                    tournament["currentStep"] = "finished"
+                elif current_round == final_round and final_round != -1: tournament["winner"] = winner; tournament["currentStep"] = "finished"
                 elif final_round != -1:
-                    next_round = current_round + 1
-                    next_idx = current_idx // 2
+                    next_round = current_round + 1; next_idx = current_idx // 2
                     next_m = next((m for m in tournament["knockoutMatches"] if m["round"] == next_round and m["matchIndex"] == next_idx), None)
                     if next_m:
                         if current_idx % 2 == 0: next_m["player1"] = winner
                         else: next_m["player2"] = winner
                 break
-
     if not match_found: raise HTTPException(status_code=404, detail=f"Match '{match_id}' non trouvé")
-    
     tournament["updatedAt"] = datetime.now(timezone.utc)
     await tournaments_collection.update_one({"_id": tournament_id}, {"$set": tournament})
     res = await tournaments_collection.find_one({"_id": tournament_id})
@@ -533,6 +548,7 @@ async def update_match_score(tournament_id: str, match_id: str, scores: ScoreUpd
 
 @api_router.post("/tournament/{tournament_id}/complete_groups", response_model=Tournament)
 async def complete_groups_and_draw_knockout(tournament_id: str):
+    # ... (Code inchangé) ...
     t = await tournaments_collection.find_one({"_id": tournament_id})
     if not t: raise HTTPException(status_code=404, detail="Tournoi non trouvé")
     tournament = Tournament(**t)
@@ -540,14 +556,13 @@ async def complete_groups_and_draw_knockout(tournament_id: str):
         raise HTTPException(status_code=400, detail="Tous les matchs de poule ne sont pas encore joués")
     if tournament.currentStep != "groups":
          raise HTTPException(status_code=400, detail="Action invalide")
-    
     qualif = determine_qualifiers_logic(tournament.groups, len(tournament.players))
     tournament.qualifiedPlayers = qualif
     tournament.currentStep = "qualified"
-    tournament.knockoutMatches = generate_knockout_matches_logic(qualif)
+    knockout_matches = generate_knockout_matches_logic(qualif)
+    tournament.knockoutMatches = knockout_matches
     tournament.currentStep = "knockout"
     tournament.updatedAt = datetime.now(timezone.utc)
-    
     update_data = {
         "$set": {
             "groups": [g.model_dump() for g in tournament.groups],
@@ -564,6 +579,7 @@ async def complete_groups_and_draw_knockout(tournament_id: str):
 
 @api_router.post("/tournament/{tournament_id}/redraw_knockout", response_model=Tournament)
 async def redraw_knockout_bracket(tournament_id: str):
+    # ... (Code inchangé) ...
     t = await tournaments_collection.find_one({"_id": tournament_id})
     if not t: raise HTTPException(status_code=404, detail="Tournoi non trouvé")
     tournament = Tournament(**t)
@@ -571,7 +587,6 @@ async def redraw_knockout_bracket(tournament_id: str):
          raise HTTPException(status_code=400, detail="Tableau final non généré.")
     if any(m.played for m in tournament.knockoutMatches):
         raise HTTPException(status_code=400, detail="Impossible: matchs déjà joués.")
-    
     new_km = generate_knockout_matches_logic(tournament.qualifiedPlayers)
     tournament.knockoutMatches = new_km
     tournament.updatedAt = datetime.now(timezone.utc)
@@ -591,7 +606,10 @@ app.include_router(auth_router)
 
 origins = [
     "https://tournoi-fc26-1.onrender.com", 
-    "http://localhost:3000",            
+    "https://tournoi-fc26-1.onrender.com/", 
+    "https://tournoi-fc26.onrender.com",    
+    "http://localhost:3000",
+    "http://localhost:3000/"
 ]
 
 app.add_middleware(

@@ -1,10 +1,7 @@
-/* Fichier: frontend/src/api.js */
+// Fichier: frontend/src/api.js
 import axios from 'axios';
 
-// Récupère l'URL de base de l'API depuis les variables d'environnement
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:10000'; 
-
-console.log("Using API Base URL:", API_BASE_URL); 
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -37,14 +34,14 @@ export const getPublicTournaments = async () => {
   }
 };
 
-// --- MODIFICATION : Ajout de tournamentName ---
-export const createTournament = async (playerNames, numGroups, tournamentName) => {
+// --- MODIFICATION : Ajout de 'format' ---
+export const createTournament = async (playerNames, numGroups, tournamentName, format) => {
   try {
-    // Le payload doit correspondre à TournamentCreateRequest
     const response = await apiClient.post('/api/tournament', { 
         playerNames, 
         numGroups,
-        tournamentName // On envoie le nom
+        tournamentName,
+        format // <-- NOUVEAU
     });
     return response.data;
   } catch (error) {
@@ -53,7 +50,8 @@ export const createTournament = async (playerNames, numGroups, tournamentName) =
   }
 };
 
-// --- NOUVEAU : Fonction de suppression ---
+// ... (Autres fonctions inchangées : delete, getMyTournaments, getTournament...) ...
+
 export const deleteTournament = async (tournamentId) => {
     try {
         await apiClient.delete(`/api/tournament/${tournamentId}`);
@@ -77,15 +75,12 @@ export const getMyTournaments = async () => {
 export const getTournament = async (tournamentId) => {
   try {
     if (tournamentId === 'active') {
-        console.warn("getTournament called with 'active', which is deprecated.");
         return null;
     }
     const response = await apiClient.get(`/api/tournament/${tournamentId}`);
-    console.log("Tournament data received:", response.data);
     return response.data;
   } catch (error) {
      if (error.response?.status === 404) {
-       console.warn(`Tournament ${tournamentId} not found.`);
        return null; 
      }
     console.error("Error fetching tournament:", error.response?.data || error.message);
@@ -123,7 +118,6 @@ export const redrawKnockout = async (tournamentId) => {
   }
 };
 
-// Obsolète mais gardé pour compatibilité
 export const drawGroups = async (tournamentId) => {
   try {
     const response = await apiClient.post(`/api/tournament/${tournamentId}/draw_groups`);

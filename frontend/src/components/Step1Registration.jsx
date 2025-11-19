@@ -1,16 +1,18 @@
 /* Fichier: frontend/src/components/Step1Registration.jsx */
 import { useState } from 'react';
-import { Users, ArrowRight, GitBranch, Type } from 'lucide-react'; // Ajout Type
+import { Users, ArrowRight, GitBranch, Type, Swords } from 'lucide-react'; 
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useToast } from '../hooks/use-toast';
 import { createTournament } from '../api'; 
+import { RadioGroup, RadioGroupItem } from './ui/radio-group'; // Import RadioGroup
 
 const Step1Registration = ({ onComplete, isAdmin }) => { 
   const [playerCount, setPlayerCount] = useState('');
   const [numGroups, setNumGroups] = useState(''); 
-  const [tournamentName, setTournamentName] = useState(''); // <-- NOUVEAU
+  const [tournamentName, setTournamentName] = useState('');
+  const [format, setFormat] = useState('1v1'); // <-- NOUVEAU ÉTAT
   const [playerNames, setPlayerNames] = useState([]);
   const [showNameInputs, setShowNameInputs] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false); 
@@ -30,13 +32,23 @@ const Step1Registration = ({ onComplete, isAdmin }) => {
       toast({ title: 'Erreur', description: 'Le nombre de joueurs doit être au minimum 4.', variant: 'destructive' });
       return;
     }
+    // Validation 2v2
+    if (format === '2v2' && count % 2 !== 0) {
+        toast({ title: 'Erreur', description: 'Pour le mode 2v2, le nombre de joueurs doit être PAIR.', variant: 'destructive' });
+        return;
+    }
+
     if (count > 64) { 
       toast({ title: 'Erreur', description: 'Le nombre de joueurs ne peut pas dépasser 64.', variant: 'destructive' });
       return;
     }
     
-    const suggestedGroups = Math.ceil(count / 4);
+    // Suggestion de poules
+    // En 2v2, le nombre d'entités est divisé par 2
+    const numEntities = format === '2v2' ? count / 2 : count;
+    const suggestedGroups = Math.ceil(numEntities / 4);
     setNumGroups(suggestedGroups.toString());
+    
     setPlayerNames(Array(count).fill(''));
     setShowNameInputs(true);
   };
@@ -62,19 +74,22 @@ const Step1Registration = ({ onComplete, isAdmin }) => {
     }
     
     const groupsInt = numGroups ? parseInt(numGroups) : 0;
-    if (numGroups && (groupsInt <= 1 || groupsInt > filledNames.length)) {
-        toast({ title: 'Erreur', description: 'Nombre de poules invalide (doit être > 1 et < Nbre de joueurs).', variant: 'destructive' });
+    // En 2v2, on vérifie par rapport au nombre d'ÉQUIPES
+    const numEntities = format === '2v2' ? filledNames.length / 2 : filledNames.length;
+
+    if (numGroups && (groupsInt <= 1 || groupsInt > numEntities)) {
+        toast({ title: 'Erreur', description: 'Nombre de poules invalide.', variant: 'destructive' });
         return;
     }
     const finalNumGroups = groupsInt > 0 ? groupsInt : null;
 
     setIsSubmitting(true);
     try {
-      // On passe le nom du tournoi (défaut si vide)
       const finalName = tournamentName.trim() || "Tournoi EA FC";
-      const tournamentData = await createTournament(filledNames, finalNumGroups, finalName);
+      // On passe le format
+      const tournamentData = await createTournament(filledNames, finalNumGroups, finalName, format);
       
-      toast({ title: 'Succès', description: `Tournoi "${finalName}" créé avec ${filledNames.length} joueurs !` });
+      toast({ title: 'Succès', description: `Tournoi "${finalName}" (${format}) créé !` });
       onComplete(tournamentData); 
     } catch (error) {
       toast({ title: 'Erreur API', description: error.response?.data?.detail || "Impossible de créer le tournoi.", variant: 'destructive' });
@@ -94,10 +109,11 @@ const Step1Registration = ({ onComplete, isAdmin }) => {
 
         {!showNameInputs ? (
           <div className="space-y-6">
-            {/* --- NOUVEAU CHAMP : NOM DU TOURNOI --- */}
+            
+            {/* Choix du Nom */}
             <div>
                <Label htmlFor="tName" className="text-lg text-gray-300 mb-2 block">
-                 Nom du Tournoi (Optionnel)
+                 Nom du Tournoi
                </Label>
                <Input
                   id="tName"
@@ -110,9 +126,26 @@ const Step1Registration = ({ onComplete, isAdmin }) => {
                />
             </div>
 
+            {/* Choix du Format */}
+            <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
+                <Label className="text-lg text-gray-300 mb-4 block flex items-center gap-2">
+                    <Swords className="w-5 h-5 text-cyan-400" /> Mode de Jeu
+                </Label>
+                <RadioGroup value={format} onValueChange={setFormat} className="flex flex-col sm:flex-row gap-4">
+                    <div className={`flex items-center space-x-2 p-4 rounded-lg border cursor-pointer transition-all ${format === '1v1' ? 'border-cyan-500 bg-cyan-900/20' : 'border-gray-600 hover:bg-gray-800'}`}>
+                        <RadioGroupItem value="1v1" id="r1" />
+                        <Label htmlFor="r1" className="cursor-pointer font-medium text-white">1 contre 1 (Classique)</Label>
+                    </div>
+                    <div className={`flex items-center space-x-2 p-4 rounded-lg border cursor-pointer transition-all ${format === '2v2' ? 'border-purple-500 bg-purple-900/20' : 'border-gray-600 hover:bg-gray-800'}`}>
+                        <RadioGroupItem value="2v2" id="r2" />
+                        <Label htmlFor="r2" className="cursor-pointer font-medium text-white">2 contre 2 (Mêlée)</Label>
+                    </div>
+                </RadioGroup>
+            </div>
+
             <div>
               <Label htmlFor="playerCount" className="text-lg text-gray-300 mb-2 block">
-                Combien de joueurs participent au tournoi ?
+                Nombre de joueurs (individuels)
               </Label>
               <Input
                 id="playerCount"
@@ -121,12 +154,16 @@ const Step1Registration = ({ onComplete, isAdmin }) => {
                 max="64"
                 value={playerCount}
                 onChange={(e) => setPlayerCount(e.target.value)}
-                placeholder="Entrez le nombre de joueurs (min: 4, max: 64)"
+                placeholder="Total des participants"
                 className="text-lg py-6 bg-gray-800 border-gray-600 text-white placeholder:text-gray-500"
                 onKeyPress={(e) => e.key === 'Enter' && handlePlayerCountSubmit()}
                 disabled={isSubmitting}
               />
+              {format === '2v2' && (
+                  <p className="text-sm text-purple-400 mt-2">⚠️ Le nombre doit être PAIR pour le 2v2.</p>
+              )}
             </div>
+            
             <Button
               onClick={handlePlayerCountSubmit}
               disabled={!playerCount || parseInt(playerCount) < 4 || isSubmitting}
@@ -140,9 +177,10 @@ const Step1Registration = ({ onComplete, isAdmin }) => {
           <div className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <div className="bg-gray-800 rounded-lg p-4 border border-gray-700 flex flex-col justify-center">
-                   <p className="text-gray-400 text-sm">Tournoi : <span className="text-white">{tournamentName || "Tournoi EA FC"}</span></p>
+                   <p className="text-gray-400 text-sm">Mode : <span className="text-cyan-400 font-bold">{format}</span></p>
                    <p className="text-gray-300 text-lg">
-                     <span className="font-bold text-cyan-400">{playerNames.length}</span> joueurs à inscrire
+                     <span className="font-bold text-white">{playerNames.length}</span> joueurs 
+                     {format === '2v2' && <span className="text-purple-400"> ({playerNames.length / 2} équipes)</span>}
                    </p>
                  </div>
                  <div className="space-y-2">
@@ -154,10 +192,11 @@ const Step1Registration = ({ onComplete, isAdmin }) => {
                         id="numGroups"
                         type="number"
                         min="2"
-                        max={playerNames.length}
+                        // Max est le nombre d'équipes en 2v2
+                        max={format === '2v2' ? playerNames.length / 2 : playerNames.length}
                         value={numGroups}
                         onChange={(e) => setNumGroups(e.target.value)}
-                        placeholder={`Suggéré : ${Math.ceil(playerNames.length / 4)} (auto si vide)`}
+                        placeholder="Auto"
                         className="bg-gray-800 border-gray-600 text-white placeholder:text-gray-500 focus:border-cyan-400 transition-colors"
                         disabled={isSubmitting}
                     />
