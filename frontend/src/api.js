@@ -72,6 +72,16 @@ export const getMyTournaments = async () => {
   }
 };
 
+export const generateNextRound = async (tournamentId) => {
+  try {
+    const response = await apiClient.post(`/api/tournament/${tournamentId}/generate_next_round`);
+    return response.data;
+  } catch (error) {
+    console.error("Error generating next round:", error.response?.data || error.message);
+    throw error;
+  }
+};
+
 export const getTournament = async (tournamentId) => {
   try {
     if (tournamentId === 'active') {

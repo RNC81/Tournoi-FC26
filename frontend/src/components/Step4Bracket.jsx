@@ -1,12 +1,12 @@
 /* Fichier: frontend/src/components/Step4Bracket.jsx */
 import { useState, useEffect } from 'react';
-import { Trophy, Edit, Crown, Loader2, Lock, Shuffle } from 'lucide-react';
+import { Trophy, Edit, Crown, Loader2, Lock, Shuffle, ArrowRight } from 'lucide-react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useToast } from '../hooks/use-toast';
-import { updateScore, redrawKnockout } from '../api';
+import { updateScore, redrawKnockout, generateNextRound } from '../api'; // Ajout generateNextRound
 
 const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, onFinish, groups, thirdPlace, isAdmin }) => {
   const [matches, setMatches] = useState(knockoutMatches || []);
@@ -18,6 +18,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
   const [thirdPlaceWinner, setThirdPlaceWinner] = useState(thirdPlace);
   const [isSavingScore, setIsSavingScore] = useState(false);
   const [isRedrawing, setIsRedrawing] = useState(false);
+  const [isGeneratingNext, setIsGeneratingNext] = useState(false); // Nouvel état
   const { toast } = useToast();
 
   useEffect(() => {
@@ -115,6 +116,40 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
       setIsRedrawing(false);
     }
   };
+  
+  
+  // --- NOUVEAU HANDLER ---
+  const handleGenerateNextRound = async () => {
+      if (!isAdmin) return;
+      setIsGeneratingNext(true);
+      try {
+          const updatedTournament = await generateNextRound(tournamentId);
+          onScoreUpdate(updatedTournament);
+          toast({ title: "Tour suivant généré !", description: "Les équipes ont été mélangées." });
+      } catch (error) {
+          const msg = error.response?.data?.detail || "Erreur lors de la génération.";
+          toast({ title: "Erreur", description: msg, variant: "destructive" });
+      } finally {
+          setIsGeneratingNext(false);
+      }
+  };
+
+
+  // Calculs pour l'affichage (inchangés)
+  const mainBracketMatches = matches.filter(m => m && !m.id.startsWith("match_third_place_"));
+  const maxRound = mainBracketMatches.length > 0 ? Math.max(0, ...mainBracketMatches.map((m) => m ? m.round : -1)) : -1;
+  const totalRounds = maxRound >= 0 ? maxRound + 1 : 0;
+  
+  // --- LOGIQUE D'AFFICHAGE DU BOUTON SUIVANT ---
+  // On vérifie si tous les matchs du DERNIER round sont finis
+  const currentRoundMatches = mainBracketMatches.filter(m => m.round === maxRound);
+  const isCurrentRoundFinished = currentRoundMatches.length > 0 && currentRoundMatches.every(m => m.played && m.winner);
+  
+  // On détecte si on est en 2v2 "Tour par Tour" :
+  // C'est le cas si on a des matchs mais qu'on n'a pas encore de "Finale" affichée 
+  // (OU si on veut juste vérifier qu'il reste > 2 équipes, mais l'API le fera).
+  // Pour simplifier : si round fini et pas de champion, on propose.
+  const showNextRoundButton = isAdmin && isCurrentRoundFinished && !champion;
 
   const getRoundName = (round, currentTotalRounds) => {
     if (currentTotalRounds === 0) return "Phase Finale";
@@ -169,12 +204,29 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
     <div className="max-w-full mx-auto space-y-8">
       <div className="text-center">
         <h2 className="text-3xl font-bold text-white mb-4">Tableau Final - Élimination Directe</h2>
+         
+         {/* Bouton Mélange (si pas commencé) */}
          {isAdmin && !champion && matches.length > 0 && !matches.some(m => m.played) && (
            <Button variant="outline" size="sm" onClick={handleRedraw} disabled={isRedrawing} className="border-gray-600 text-gray-300 hover:bg-gray-700 hover:border-cyan-500">
              {isRedrawing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Shuffle className="mr-2 h-4 w-4" />}
              {isRedrawing ? "Mélange..." : "Relancer le tirage"}
            </Button>
         )}
+
+        {/* --- NOUVEAU BOUTON : TOUR SUIVANT (2v2) --- */}
+        {showNextRoundButton && (
+            <div className="mt-4 animate-in fade-in slide-in-from-bottom-4">
+                <Button 
+                    onClick={handleGenerateNextRound} 
+                    disabled={isGeneratingNext}
+                    className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white font-bold py-6 px-8 text-lg shadow-lg shadow-purple-500/30"
+                >
+                    {isGeneratingNext ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : <ArrowRight className="mr-2 h-6 w-6" />}
+                    {isGeneratingNext ? "Génération..." : "Mélanger et Lancer le Tour Suivant"}
+                </Button>
+            </div>
+        )}
+
       </div>
 
       {/* Affichage Champion */}
