@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useToast } from '../hooks/use-toast';
-import { updateScore, redrawKnockout, generateNextRound } from '../api'; // Ajout generateNextRound
+import { updateScore, redrawKnockout, generateNextRound } from '../api';
 
 const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, onFinish, groups, thirdPlace, isAdmin }) => {
   const [matches, setMatches] = useState(knockoutMatches || []);
@@ -18,7 +18,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
   const [thirdPlaceWinner, setThirdPlaceWinner] = useState(thirdPlace);
   const [isSavingScore, setIsSavingScore] = useState(false);
   const [isRedrawing, setIsRedrawing] = useState(false);
-  const [isGeneratingNext, setIsGeneratingNext] = useState(false); // Nouvel état
+  const [isGeneratingNext, setIsGeneratingNext] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -33,17 +33,17 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
     setThirdPlaceWinner(thirdPlace);
   }, [thirdPlace]);
 
-  // Calculs pour l'affichage du bracket
+  // --- CALCULS PRINCIPAUX (Définis une seule fois ici) ---
   const mainBracketMatches = matches.filter(m => m && !m.id.startsWith("match_third_place_"));
   const maxRound = mainBracketMatches.length > 0 ? Math.max(0, ...mainBracketMatches.map((m) => m ? m.round : -1)) : -1;
   const totalRounds = maxRound >= 0 ? maxRound + 1 : 0;
   
   const isFinalOrThirdPlace = selectedMatch?.id?.startsWith("match_third_place_") || selectedMatch?.round === (totalRounds - 1);
 
+  // --- HANDLERS ---
+
   const handleMatchClick = (match) => {
-    if (!isAdmin) {
-        return; // Le clic ne fait rien pour le spectateur (pas de toast pour éviter le spam)
-    }
+    if (!isAdmin) return;
       
     if (!match || !match.player1 || !match.player2) { 
       toast({ title: 'Match non prêt', description: 'Les joueurs ne sont pas encore déterminés.', variant: 'destructive' });
@@ -117,8 +117,6 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
     }
   };
   
-  
-  // --- NOUVEAU HANDLER ---
   const handleGenerateNextRound = async () => {
       if (!isAdmin) return;
       setIsGeneratingNext(true);
@@ -134,23 +132,14 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
       }
   };
 
-
-  // Calculs pour l'affichage (inchangés)
-  const mainBracketMatches = matches.filter(m => m && !m.id.startsWith("match_third_place_"));
-  const maxRound = mainBracketMatches.length > 0 ? Math.max(0, ...mainBracketMatches.map((m) => m ? m.round : -1)) : -1;
-  const totalRounds = maxRound >= 0 ? maxRound + 1 : 0;
-  
   // --- LOGIQUE D'AFFICHAGE DU BOUTON SUIVANT ---
-  // On vérifie si tous les matchs du DERNIER round sont finis
   const currentRoundMatches = mainBracketMatches.filter(m => m.round === maxRound);
   const isCurrentRoundFinished = currentRoundMatches.length > 0 && currentRoundMatches.every(m => m.played && m.winner);
   
-  // On détecte si on est en 2v2 "Tour par Tour" :
-  // C'est le cas si on a des matchs mais qu'on n'a pas encore de "Finale" affichée 
-  // (OU si on veut juste vérifier qu'il reste > 2 équipes, mais l'API le fera).
-  // Pour simplifier : si round fini et pas de champion, on propose.
+  // Bouton visible seulement si admin, round fini, et pas encore de champion (tournoi pas fini)
   const showNextRoundButton = isAdmin && isCurrentRoundFinished && !champion;
 
+  // --- PREPARATION DONNEES AFFICHAGE ---
   const getRoundName = (round, currentTotalRounds) => {
     if (currentTotalRounds === 0) return "Phase Finale";
     const roundsFromEnd = currentTotalRounds - round;
@@ -170,7 +159,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
 
   const renderMatchCard = (match) => {
     if (!match) return null; 
-    const isClickable = isAdmin && match.player1 && match.player2; // On permet le clic même si winner est défini pour corriger
+    const isClickable = isAdmin && match.player1 && match.player2; 
     const cursorStyle = isClickable ? 'cursor-pointer' : 'cursor-default';
     const hoverStyle = isClickable ? 'hover:border-cyan-400/80 hover:shadow-cyan-500/20' : '';
 
@@ -272,7 +261,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
         </div> 
       )} 
 
-      {/* Affichage du Tableau (TOUJOURS VISIBLE MAINTENANT) */}
+      {/* Affichage du Tableau (TOUJOURS VISIBLE) */}
       {matches.length > 0 && (
         <div className="overflow-x-auto pb-4">
             <div className="flex gap-8 min-w-max px-4">
