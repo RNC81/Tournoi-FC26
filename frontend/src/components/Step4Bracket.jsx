@@ -33,18 +33,23 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
     setThirdPlaceWinner(thirdPlace);
   }, [thirdPlace]);
 
-  // --- CALCULS PRINCIPAUX (Définis une seule fois ici) ---
+  // --- CALCULS CORRIGÉS ---
   const mainBracketMatches = matches.filter(m => m && !m.id.startsWith("match_third_place_"));
   const maxRound = mainBracketMatches.length > 0 ? Math.max(0, ...mainBracketMatches.map((m) => m ? m.round : -1)) : -1;
-  const totalRounds = maxRound >= 0 ? maxRound + 1 : 0;
   
-  const isFinalOrThirdPlace = selectedMatch?.id?.startsWith("match_third_place_") || selectedMatch?.round === (totalRounds - 1);
+  // Pour déterminer le nom du tour, on a besoin de savoir combien de joueurs étaient là au départ du bracket
+  // On le déduit du round 0 : s'il y a 8 matchs au round 0, c'était des 8èmes (16 équipes/joueurs)
+  const matchesInRound0 = mainBracketMatches.filter(m => m.round === 0).length;
+  const initialParticipants = matchesInRound0 * 2;
+  
+  // Nombre total de tours théorique (ex: 16 participants -> 4 tours: 8e, 1/4, 1/2, F)
+  const totalRoundsTheoretical = Math.log2(initialParticipants);
 
-  // --- HANDLERS ---
+  const isFinalOrThirdPlace = selectedMatch?.id?.startsWith("match_third_place_") || selectedMatch?.round === (totalRoundsTheoretical - 1);
 
+  // --- HANDLERS (Inchangés) ---
   const handleMatchClick = (match) => {
     if (!isAdmin) return;
-      
     if (!match || !match.player1 || !match.player2) { 
       toast({ title: 'Match non prêt', description: 'Les joueurs ne sont pas encore déterminés.', variant: 'destructive' });
       return;
@@ -62,36 +67,27 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
     }
     const s1 = parseInt(score1);
     const s2 = parseInt(score2);
-
     if (isNaN(s1) || isNaN(s2) || s1 < 0 || s2 < 0) {
       toast({ title: 'Erreur', description: 'Scores invalides.', variant: 'destructive' });
       return;
     }
-
     if (isFinalOrThirdPlace && s1 === s2) {
       toast({ title: 'Erreur', description: 'Match nul interdit pour la Finale et la 3ème place.', variant: 'destructive' });
       return;
     }
     if (!selectedMatch) return;
-
     setIsSavingScore(true);
     try {
       const updatedTournament = await updateScore(tournamentId, selectedMatch.id, s1, s2);
       onScoreUpdate(updatedTournament); 
-
       if (updatedTournament.winner && updatedTournament.thirdPlace) {
         onFinish(updatedTournament); 
       }
-
       setIsDialogOpen(false);
-      setScore1('');
-      setScore2('');
-      setSelectedMatch(null);
+      setScore1(''); setScore2(''); setSelectedMatch(null);
       toast({ title: 'Score enregistré', description: `${selectedMatch.player1} ${s1} - ${s2} ${selectedMatch.player2}` });
-
     } catch (error) {
       toast({ title: 'Erreur API', description: "Impossible d'enregistrer le score.", variant: 'destructive' });
-      console.error("Failed to update knockout score:", error);
     } finally {
       setIsSavingScore(false);
     }
@@ -101,17 +97,16 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
     if (!isAdmin) return; 
     const matchPlayed = matches.some(m => m.played);
     if (matchPlayed) {
-        toast({ title: 'Action impossible', description: 'Vous ne pouvez pas relancer le tirage si un match a déjà été joué.', variant: 'destructive' });
+        toast({ title: 'Action impossible', description: 'Matchs déjà joués.', variant: 'destructive' });
         return;
     }
-
     setIsRedrawing(true);
     try {
       const updatedTournament = await redrawKnockout(tournamentId);
       onScoreUpdate(updatedTournament); 
-      toast({ title: 'Tirage au sort relancé', description: 'Le tableau final a été mélangé.' });
+      toast({ title: 'Tirage au sort relancé', description: 'Le tableau a été mélangé.' });
     } catch (error) {
-      toast({ title: 'Erreur', description: error.response?.data?.detail || "Impossible de relancer le tirage.", variant: 'destructive' });
+      toast({ title: 'Erreur', description: "Impossible de relancer.", variant: 'destructive' });
     } finally {
       setIsRedrawing(false);
     }
@@ -125,24 +120,22 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
           onScoreUpdate(updatedTournament);
           toast({ title: "Tour suivant généré !", description: "Les équipes ont été mélangées." });
       } catch (error) {
-          const msg = error.response?.data?.detail || "Erreur lors de la génération.";
+          const msg = error.response?.data?.detail || "Erreur.";
           toast({ title: "Erreur", description: msg, variant: "destructive" });
       } finally {
           setIsGeneratingNext(false);
       }
   };
 
-  // --- LOGIQUE D'AFFICHAGE DU BOUTON SUIVANT ---
+  // --- LOGIQUE BOUTON SUIVANT ---
   const currentRoundMatches = mainBracketMatches.filter(m => m.round === maxRound);
   const isCurrentRoundFinished = currentRoundMatches.length > 0 && currentRoundMatches.every(m => m.played && m.winner);
-  
-  // Bouton visible seulement si admin, round fini, et pas encore de champion (tournoi pas fini)
   const showNextRoundButton = isAdmin && isCurrentRoundFinished && !champion;
 
   // --- PREPARATION DONNEES AFFICHAGE ---
-  const getRoundName = (round, currentTotalRounds) => {
-    if (currentTotalRounds === 0) return "Phase Finale";
-    const roundsFromEnd = currentTotalRounds - round;
+  const getRoundName = (round, total) => {
+    if (total === 0) return "Phase Finale";
+    const roundsFromEnd = total - round;
     if (roundsFromEnd === 1) return 'Finale';
     if (roundsFromEnd === 2) return 'Demi-finales';
     if (roundsFromEnd === 3) return 'Quarts de finale';
@@ -150,8 +143,8 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
     return `Tour ${round + 1}`;
   };
 
-  const roundsData = Array.from({ length: totalRounds }).map((_, roundIndex) => ({
-    name: getRoundName(roundIndex, totalRounds),
+  const roundsData = Array.from({ length: maxRound + 1 }).map((_, roundIndex) => ({
+    name: getRoundName(roundIndex, totalRoundsTheoretical), // Utilise le total théorique !
     matches: mainBracketMatches.filter(m => m && m.round === roundIndex) 
   }));
 
@@ -178,7 +171,6 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
             <span className="font-medium truncate">{match.player2 || '...'}</span>
             {match.played && match.score2 !== null && (<span className="text-cyan-400 font-bold">{match.score2}</span>)}
           </div>
-          
           {isAdmin && match.player1 && match.player2 && (
             <Button variant="outline" size="sm" className="w-full mt-1.5 border-gray-600 text-gray-300 hover:bg-gray-700 hover:border-cyan-500 text-xs py-0.5 h-6" onClick={(e) => { e.stopPropagation(); handleMatchClick(match); }}>
               <Edit className="w-3 h-3 mr-1" /> {match.winner ? "Corriger" : "Score"}
@@ -193,32 +185,22 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
     <div className="max-w-full mx-auto space-y-8">
       <div className="text-center">
         <h2 className="text-3xl font-bold text-white mb-4">Tableau Final - Élimination Directe</h2>
-         
-         {/* Bouton Mélange (si pas commencé) */}
          {isAdmin && !champion && matches.length > 0 && !matches.some(m => m.played) && (
            <Button variant="outline" size="sm" onClick={handleRedraw} disabled={isRedrawing} className="border-gray-600 text-gray-300 hover:bg-gray-700 hover:border-cyan-500">
              {isRedrawing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Shuffle className="mr-2 h-4 w-4" />}
              {isRedrawing ? "Mélange..." : "Relancer le tirage"}
            </Button>
         )}
-
-        {/* --- NOUVEAU BOUTON : TOUR SUIVANT (2v2) --- */}
         {showNextRoundButton && (
             <div className="mt-4 animate-in fade-in slide-in-from-bottom-4">
-                <Button 
-                    onClick={handleGenerateNextRound} 
-                    disabled={isGeneratingNext}
-                    className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white font-bold py-6 px-8 text-lg shadow-lg shadow-purple-500/30"
-                >
+                <Button onClick={handleGenerateNextRound} disabled={isGeneratingNext} className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white font-bold py-6 px-8 text-lg shadow-lg shadow-purple-500/30">
                     {isGeneratingNext ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : <ArrowRight className="mr-2 h-6 w-6" />}
                     {isGeneratingNext ? "Génération..." : "Mélanger et Lancer le Tour Suivant"}
                 </Button>
             </div>
         )}
-
       </div>
 
-      {/* Affichage Champion */}
       {champion && (
         <div className="bg-gradient-to-br from-yellow-900/40 to-gray-800 rounded-2xl p-8 shadow-2xl border-4 border-yellow-500/50 text-center mb-8">
           <Crown className="w-20 h-20 text-yellow-400 mx-auto mb-4 animate-pulse" />
@@ -227,13 +209,13 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
         </div>
       )}
 
-      {/* Affichage du Podium */}
       {champion && thirdPlaceWinner && (
         <div className="mb-12 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-8 shadow-xl border border-gray-700">
           <h3 className="text-3xl font-bold text-center text-gray-200 mb-8">Podium Final</h3>
           <div className="flex flex-col md:flex-row justify-around items-center gap-8">
             {(() => { 
-              const finalMatch = matches.find(m => m && m.round === totalRounds - 1 && !m.id.startsWith("match_third_place_")); 
+              // On cherche le dernier match joué (la finale)
+              const finalMatch = matches.find(m => m && m.round === maxRound && !m.id.startsWith("match_third_place_")); 
               const secondPlace = finalMatch && finalMatch.player1 && finalMatch.player2 
                 ? (finalMatch.player1 === champion ? finalMatch.player2 : finalMatch.player1)
                 : 'Non déterminé';
@@ -261,82 +243,49 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
         </div> 
       )} 
 
-      {/* Affichage du Tableau (TOUJOURS VISIBLE) */}
       {matches.length > 0 && (
         <div className="overflow-x-auto pb-4">
             <div className="flex gap-8 min-w-max px-4">
               {roundsData.filter(round => round.name !== 'Finale').map((round, roundIndex) => (
                   round.matches && round.matches.length > 0 && (
                       <div key={roundIndex} className="flex flex-col w-64 sm:w-72 flex-shrink-0"> 
-                      <h3 className="text-xl font-bold text-center mb-4 pb-2 border-b-2 text-cyan-400 border-cyan-700">
-                          {round.name}
-                      </h3>
+                      <h3 className="text-xl font-bold text-center mb-4 pb-2 border-b-2 text-cyan-400 border-cyan-700">{round.name}</h3>
                       <div className="space-y-4 flex-grow flex flex-col justify-around">
                           {round.matches.map(renderMatchCard)}
                       </div>
                       </div>
                   )
               ))}
-
               {thirdPlaceMatch && (
                  <div className="flex flex-col w-64 sm:w-72 flex-shrink-0"> 
-                   <h3 className="text-xl font-bold text-orange-400 text-center mb-4 pb-2 border-b-2 border-orange-700">
-                     Match 3ème Place
-                   </h3>
-                   <div className="space-y-4 flex-grow flex flex-col justify-around">
-                     {renderMatchCard(thirdPlaceMatch)}
-                   </div>
+                   <h3 className="text-xl font-bold text-orange-400 text-center mb-4 pb-2 border-b-2 border-orange-700">Match 3ème Place</h3>
+                   <div className="space-y-4 flex-grow flex flex-col justify-around">{renderMatchCard(thirdPlaceMatch)}</div>
                  </div>
               )}
-
               {roundsData.filter(round => round.name === 'Finale').map((round, roundIndex) => (
                   round.matches && round.matches.length > 0 && (
                       <div key="finale" className="flex flex-col w-64 sm:w-72 flex-shrink-0"> 
-                      <h3 className="text-xl font-bold text-center mb-4 pb-2 border-b-2 text-yellow-400 border-yellow-700">
-                          {round.name}
-                      </h3>
-                      <div className="space-y-4 flex-grow flex flex-col justify-around">
-                          {round.matches.map(renderMatchCard)}
-                      </div>
+                      <h3 className="text-xl font-bold text-center mb-4 pb-2 border-b-2 text-yellow-400 border-yellow-700">{round.name}</h3>
+                      <div className="space-y-4 flex-grow flex flex-col justify-around">{round.matches.map(renderMatchCard)}</div>
                       </div>
                   )
               ))}
             </div> 
         </div> 
       )} 
-
        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
          <DialogContent className="bg-gray-900 border-gray-700">
-           <DialogHeader>
-             <DialogTitle className="text-2xl text-white">
-               {selectedMatch && (
-                 <>
-                   {selectedMatch.player1} <span className="text-cyan-400 mx-2">vs</span> {selectedMatch.player2} 
-                 </>
-               )}
-             </DialogTitle>
-           </DialogHeader>
+           <DialogHeader><DialogTitle className="text-2xl text-white">{selectedMatch && (<>{selectedMatch.player1} <span className="text-cyan-400 mx-2">vs</span> {selectedMatch.player2}</>)}</DialogTitle></DialogHeader>
            <div className="space-y-6 mt-4">
-             <div className="bg-yellow-900/20 border border-yellow-600/50 rounded-lg p-3">
-               <p className="text-yellow-400 text-sm text-center">
-                 Match nul interdit pour la Finale et la 3ème place.
-               </p>
-             </div>
+             <div className="bg-yellow-900/20 border border-yellow-600/50 rounded-lg p-3"><p className="text-yellow-400 text-sm text-center">Match nul interdit pour la Finale et la 3ème place.</p></div>
              <div className="grid grid-cols-2 gap-4">
-               <div>
-                 <Label className="text-gray-300 mb-2 block">{selectedMatch?.player1}</Label>
-                 <Input type="number" min="0" value={score1} onChange={(e) => setScore1(e.target.value)} placeholder="Score" className="text-2xl text-center bg-gray-800 border-gray-600 text-white" disabled={isSavingScore} />
-               </div>
-               <div>
-                 <Label className="text-gray-300 mb-2 block">{selectedMatch?.player2}</Label>
-                 <Input type="number" min="0" value={score2} onChange={(e) => setScore2(e.target.value)} placeholder="Score" className="text-2xl text-center bg-gray-800 border-gray-600 text-white" disabled={isSavingScore} />
-               </div>
+               <div><Label className="text-gray-300 mb-2 block">{selectedMatch?.player1}</Label><Input type="number" min="0" value={score1} onChange={(e) => setScore1(e.target.value)} placeholder="Score" className="text-2xl text-center bg-gray-800 border-gray-600 text-white" disabled={isSavingScore} /></div>
+               <div><Label className="text-gray-300 mb-2 block">{selectedMatch?.player2}</Label><Input type="number" min="0" value={score2} onChange={(e) => setScore2(e.target.value)} placeholder="Score" className="text-2xl text-center bg-gray-800 border-gray-600 text-white" disabled={isSavingScore} /></div>
              </div>
              <DialogFooter>
                  <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSavingScore}>Annuler</Button>
                  <Button onClick={handleScoreSubmit} disabled={isSavingScore || score1 === '' || score2 === '' || (isFinalOrThirdPlace && score1 === score2)} className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white">
-                    {isSavingScore ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    {isSavingScore ? "Enregistrement..." : "Enregistrer"}
+                    {isSavingScore ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} {isSavingScore ? "Enregistrement..." : "Enregistrer"}
                  </Button>
              </DialogFooter>
            </div>

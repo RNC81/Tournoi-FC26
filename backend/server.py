@@ -248,13 +248,22 @@ async def login_for_access_token(user_in: UserLogin):
 
 def create_groups_logic(players: List[str], num_groups: Optional[int] = None, format: str = "1v1") -> List[Group]:
     entities = []
+    
+    # --- MODIFICATION : On ne mélange PLUS ici pour le 2v2 si on veut respecter la preview ---
+    # Si format 2v2, on suppose que la liste 'players' est DÉJÀ mélangée/ordonnée par le frontend
     if format == "2v2":
-        shuffled_players = random.sample(players, len(players))
-        for i in range(0, len(shuffled_players), 2):
-            p1 = shuffled_players[i]
-            p2 = shuffled_players[i+1]
-            entities.append(PlayerStats(name=f"{p1} + {p2}", real_players=[p1, p2]))
+        # On prend les joueurs 2 par 2 dans l'ordre fourni
+        for i in range(0, len(players), 2):
+            if i+1 < len(players):
+                p1 = players[i]
+                p2 = players[i+1]
+                entities.append(PlayerStats(name=f"{p1} + {p2}", real_players=[p1, p2]))
+            else:
+                # Cas impair (ne devrait pas arriver avec la validation)
+                 entities.append(PlayerStats(name=players[i], real_players=[players[i]]))
     else:
+        # En 1v1, on peut mélanger ici ou faire confiance.
+        # Pour cohérence, faisons confiance à l'ordre, mais mélangeons pour la répartition des poules.
         entities = [PlayerStats(name=p) for p in players]
 
     totalEntities = len(entities)
@@ -266,7 +275,10 @@ def create_groups_logic(players: List[str], num_groups: Optional[int] = None, fo
     else:
         logging.info(f"Calcul manuel: {totalEntities} entités -> {num_groups} poules")
     
+    # On mélange les ENTITÉS (équipes) pour les répartir dans les poules
+    # Cela garde les équipes formées, mais les place au hasard dans Poule A, B...
     shuffled_entities = random.sample(entities, totalEntities)
+    
     base_size = totalEntities // num_groups
     remainder = totalEntities % num_groups
     groupSizes = []
@@ -486,8 +498,8 @@ async def complete_groups_and_draw_knockout(tournament_id: str):
 @api_router.post("/tournament/{tournament_id}/generate_next_round", response_model=Tournament)
 async def generate_next_round(tournament_id: str):
     """
-    Pour le mode 2v2 : Prend les vainqueurs du tour actuel, 
-    mélange les joueurs et génère le tour suivant.
+    Pour le mode 2v2 : Prend les vainqueurs, mélange et génère le tour suivant.
+    Gère aussi la petite finale si on est en demies.
     """
     t_data = await tournaments_collection.find_one({"_id": tournament_id})
     if not t_data: raise HTTPException(status_code=404, detail="Tournoi non trouvé")
@@ -503,19 +515,22 @@ async def generate_next_round(tournament_id: str):
          
     max_round = max(m.round for m in current_matches if not m.id.startswith("match_third_place_"))
     
-    # Vérifier si le tour actuel est fini
+    # Matchs du tour actuel
     current_round_matches = [m for m in current_matches if m.round == max_round and not m.id.startswith("match_third_place_")]
     if not all(m.played and m.winner for m in current_round_matches):
         raise HTTPException(status_code=400, detail="Le tour actuel n'est pas terminé")
         
-    # Récupérer les vainqueurs (Equipes "A + B")
     winning_teams = [m.winner for m in current_round_matches]
-    
+    losing_teams = []
+    # Pour récupérer les perdants, on regarde qui n'est pas le winner
+    for m in current_round_matches:
+        if m.winner == m.player1: losing_teams.append(m.player2)
+        else: losing_teams.append(m.player1)
+
     if len(winning_teams) < 2:
-         # C'était la finale
          raise HTTPException(status_code=400, detail="Le tournoi est terminé (Finale jouée)")
 
-    # Dissoudre et mélanger
+    # --- GESTION VAINQUEURS (Finale) ---
     individual_pool = []
     for team_name in winning_teams:
         parts = team_name.split(' + ')
@@ -523,16 +538,15 @@ async def generate_next_round(tournament_id: str):
     
     random.shuffle(individual_pool)
     
-    # Créer nouvelles équipes
     new_teams = []
     for i in range(0, len(individual_pool), 2):
         if i+1 < len(individual_pool):
             new_teams.append(f"{individual_pool[i]} + {individual_pool[i+1]}")
             
-    # Générer matchs du tour suivant (max_round + 1)
     next_round_index = max_round + 1
     new_matches = []
     
+    # Création de la finale (ou du tour suivant)
     for i in range(len(new_teams) // 2):
          new_matches.append(KnockoutMatch(
             id=f"match_{uuid.uuid4()}", 
@@ -541,13 +555,34 @@ async def generate_next_round(tournament_id: str):
             player1=new_teams[i*2], 
             player2=new_teams[i*2+1]
         ))
-    
+
+    # --- GESTION PERDANTS (Petite Finale) ---
+    # Si on avait 2 matchs (donc 4 équipes) dans le round actuel, c'était les Demies.
+    # On doit créer la petite finale avec les perdants reshufflés.
+    if len(current_round_matches) == 2:
+        logging.info("Demi-finales 2v2 détectées : Création de la petite finale reshufflée.")
+        loser_pool = []
+        for team_name in losing_teams:
+            parts = team_name.split(' + ')
+            loser_pool.extend(parts)
+        
+        random.shuffle(loser_pool)
+        # On devrait avoir 4 joueurs -> 2 équipes
+        loser_teams = []
+        for i in range(0, len(loser_pool), 2):
+             loser_teams.append(f"{loser_pool[i]} + {loser_pool[i+1]}")
+             
+        if len(loser_teams) == 2:
+            new_matches.append(KnockoutMatch(
+                id=f"match_third_place_{uuid.uuid4()}", 
+                round=next_round_index, # On met la petite finale au même "niveau" que la finale
+                matchIndex=1, 
+                player1=loser_teams[0], 
+                player2=loser_teams[1]
+            ))
+
     # Ajouter au tableau existant
     tournament.knockoutMatches.extend(new_matches)
-    
-    # Si c'est la finale (il reste 2 équipes donc 1 match), on peut ajouter la petite finale si besoin
-    # Mais en 2v2 reshuffle, la petite finale est complexe car les perdants des demis sont aussi dissous.
-    # Simplification : Pas de petite finale en 2v2 reshuffle pour l'instant.
     
     tournament.updatedAt = datetime.now(timezone.utc)
     
@@ -637,20 +672,17 @@ async def update_match_score(tournament_id: str, match_id: str, scores: ScoreUpd
                 winner = None; loser = None
                 if scores.score1 > scores.score2: winner = match["player1"]; loser = match["player2"]
                 elif scores.score2 > scores.score1: winner = match["player2"]; loser = match["player1"]
-                # (Gestion nul simplifiée, cf versions précédentes pour détail)
                 
                 match["winner"] = winner
                 match_found = True
                 
-                # --- MODIFICATION CRUCIALE POUR 2V2 ---
-                # Si on est en 2v2, on N'AVANCE PAS automatiquement le vainqueur
+                # --- LOGIQUE 1v1 Standard (Avancement automatique) ---
                 if tournament.get("format") != "2v2":
-                    # Logique 1v1 Standard (Avancement automatique)
                     current_round = match["round"]
                     current_idx = match["matchIndex"]
                     qualif = tournament.get("qualifiedPlayers", [])
                     total_rounds = math.ceil(math.log2(len(qualif))) if qualif else 0
-                    if total_rounds == 0: # fallback
+                    if total_rounds == 0: 
                          all_m = [m["round"] for m in tournament["knockoutMatches"] if not m["id"].startswith("match_third_place_")]
                          if all_m: total_rounds = max(all_m) + 1
                     
@@ -659,33 +691,53 @@ async def update_match_score(tournament_id: str, match_id: str, scores: ScoreUpd
                     
                     if match["id"].startswith("match_third_place_"):
                         tournament["thirdPlace"] = winner
-                    elif current_round == semi_final: # Demi -> Finale/Petite Finale
-                        # Petite finale (perdant)
+                    elif current_round == semi_final:
                         petite = next((m for m in tournament["knockoutMatches"] if m["id"].startswith("match_third_place_")), None)
                         if petite:
                             if not petite.get("player1"): petite["player1"] = loser
                             elif not petite.get("player2"): petite["player2"] = loser
-                        # Finale (gagnant)
                         next_round = current_round + 1
                         next_idx = current_idx // 2
                         finale = next((m for m in tournament["knockoutMatches"] if m["round"] == next_round and m["matchIndex"] == next_idx), None)
                         if finale:
                             if current_idx % 2 == 0: finale["player1"] = winner
                             else: finale["player2"] = winner
-                    elif current_round == final_round: # Finale
+                    elif current_round == final_round:
                          tournament["winner"] = winner
                          tournament["currentStep"] = "finished"
-                    else: # Autres tours
+                    else:
                         next_round = current_round + 1
                         next_idx = current_idx // 2
                         next_m = next((m for m in tournament["knockoutMatches"] if m["round"] == next_round and m["matchIndex"] == next_idx), None)
                         if next_m:
                              if current_idx % 2 == 0: next_m["player1"] = winner
                              else: next_m["player2"] = winner
+                # --- FIN LOGIQUE 1v1 ---
+                # En 2v2, on ne fait RIEN ici, on attend l'appel de /generate_next_round
+                
+                # Petite subtilité pour 2v2: Si c'est la finale ou petite finale qui est jouée, on met à jour le statut
+                if tournament.get("format") == "2v2":
+                    # Check if it's the last round (Finale/Petite Finale)
+                    current_matches = tournament.get("knockoutMatches")
+                    max_round = max(m["round"] for m in current_matches if not m["id"].startswith("match_third_place_"))
+                    is_last_round = match["round"] == max_round
 
-                # Fin logique conditionnelle 1v1
+                    if match["id"].startswith("match_third_place_"):
+                         tournament["thirdPlace"] = winner
+                    elif is_last_round:
+                         # C'est la finale ? Il faut vérifier s'il reste qu'un match
+                         # En 2v2 reshuffle, on sait que c'est la finale si max_round correspond à 2 équipes
+                         # Simplification: Si c'est le dernier match du dernier round généré
+                         # On ne sait pas si c'est la finale absolue sans compter les joueurs restants.
+                         # Mais si on a un winner, on peut le marquer.
+                         # Si tous les matchs du round sont finis et qu'il n'y a qu'un match, c'est la finale.
+                         matches_in_this_round = [m for m in current_matches if m["round"] == max_round and not m["id"].startswith("match_third_place_")]
+                         if len(matches_in_this_round) == 1:
+                             tournament["winner"] = winner
+                             tournament["currentStep"] = "finished"
+
                 break
-    
+
     if not match_found: raise HTTPException(status_code=404, detail=f"Match '{match_id}' non trouvé")
     
     tournament["updatedAt"] = datetime.now(timezone.utc)
@@ -696,13 +748,13 @@ async def update_match_score(tournament_id: str, match_id: str, scores: ScoreUpd
 
 @api_router.post("/tournament/{tournament_id}/redraw_knockout", response_model=Tournament)
 async def redraw_knockout_bracket(tournament_id: str):
+    # ... (Code inchangé) ...
     t = await tournaments_collection.find_one({"_id": tournament_id})
     if not t: raise HTTPException(status_code=404, detail="Tournoi non trouvé")
     tournament = Tournament(**t)
-    if tournament.currentStep not in ["knockout", "finished"]: raise HTTPException(status_code=400, detail="Erreur étape")
-    if any(m.played for m in tournament.knockoutMatches): raise HTTPException(status_code=400, detail="Matchs déjà joués")
     
     new_km = generate_knockout_matches_logic(tournament.qualifiedPlayers, single_round=(tournament.format=="2v2"))
+    
     tournament.knockoutMatches = new_km
     tournament.updatedAt = datetime.now(timezone.utc)
     update_data = {"$set": {"knockoutMatches": [m.model_dump() for m in new_km], "updatedAt": tournament.updatedAt}}

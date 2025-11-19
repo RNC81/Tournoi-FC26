@@ -1,20 +1,31 @@
 /* Fichier: frontend/src/components/Step1Registration.jsx */
 import { useState } from 'react';
-import { Users, ArrowRight, GitBranch, Type, Swords } from 'lucide-react'; 
+import { Users, ArrowRight, GitBranch, Type, Swords, Shuffle } from 'lucide-react'; 
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useToast } from '../hooks/use-toast';
 import { createTournament } from '../api'; 
-import { RadioGroup, RadioGroupItem } from './ui/radio-group'; // Import RadioGroup
+import { RadioGroup, RadioGroupItem } from './ui/radio-group';
+
+// Fonction de mélange (Fisher-Yates)
+const shuffleArray = (array) => {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+};
 
 const Step1Registration = ({ onComplete, isAdmin }) => { 
   const [playerCount, setPlayerCount] = useState('');
   const [numGroups, setNumGroups] = useState(''); 
   const [tournamentName, setTournamentName] = useState('');
-  const [format, setFormat] = useState('1v1'); // <-- NOUVEAU ÉTAT
+  const [format, setFormat] = useState('1v1'); 
   const [playerNames, setPlayerNames] = useState([]);
   const [showNameInputs, setShowNameInputs] = useState(false);
+  const [showTeamPreview, setShowTeamPreview] = useState(false); // <-- NOUVEAU ETAT
   const [isSubmitting, setIsSubmitting] = useState(false); 
   const { toast } = useToast();
 
@@ -32,19 +43,15 @@ const Step1Registration = ({ onComplete, isAdmin }) => {
       toast({ title: 'Erreur', description: 'Le nombre de joueurs doit être au minimum 4.', variant: 'destructive' });
       return;
     }
-    // Validation 2v2
     if (format === '2v2' && count % 2 !== 0) {
         toast({ title: 'Erreur', description: 'Pour le mode 2v2, le nombre de joueurs doit être PAIR.', variant: 'destructive' });
         return;
     }
-
     if (count > 64) { 
       toast({ title: 'Erreur', description: 'Le nombre de joueurs ne peut pas dépasser 64.', variant: 'destructive' });
       return;
     }
     
-    // Suggestion de poules
-    // En 2v2, le nombre d'entités est divisé par 2
     const numEntities = format === '2v2' ? count / 2 : count;
     const suggestedGroups = Math.ceil(numEntities / 4);
     setNumGroups(suggestedGroups.toString());
@@ -59,23 +66,25 @@ const Step1Registration = ({ onComplete, isAdmin }) => {
     setPlayerNames(newNames);
   };
 
+  // --- NOUVELLE FONCTION : Prévisualiser ---
+  const handlePreviewTeams = () => {
+    const filledNames = playerNames.map(name => name.trim()).filter(name => name !== '');
+    if (filledNames.length !== playerNames.length) {
+      toast({ title: 'Erreur', description: 'Veuillez remplir tous les noms.', variant: 'destructive' });
+      return;
+    }
+    // On mélange localement
+    const shuffled = shuffleArray(filledNames);
+    setPlayerNames(shuffled); // Mise à jour avec l'ordre mélangé
+    setShowTeamPreview(true);
+  };
+
   const handleSubmit = async () => {
     const filledNames = playerNames.map(name => name.trim()).filter(name => name !== '');
-
-    if (filledNames.length !== playerNames.length) {
-      toast({ title: 'Erreur', description: 'Veuillez remplir tous les noms de joueurs.', variant: 'destructive' });
-      return;
-    }
-
-    const uniqueNames = new Set(filledNames);
-    if (uniqueNames.size !== filledNames.length) {
-      toast({ title: 'Erreur', description: 'Tous les noms de joueurs doivent être uniques.', variant: 'destructive' });
-      return;
-    }
     
-    const groupsInt = numGroups ? parseInt(numGroups) : 0;
     // En 2v2, on vérifie par rapport au nombre d'ÉQUIPES
     const numEntities = format === '2v2' ? filledNames.length / 2 : filledNames.length;
+    const groupsInt = numGroups ? parseInt(numGroups) : 0;
 
     if (numGroups && (groupsInt <= 1 || groupsInt > numEntities)) {
         toast({ title: 'Erreur', description: 'Nombre de poules invalide.', variant: 'destructive' });
@@ -86,10 +95,11 @@ const Step1Registration = ({ onComplete, isAdmin }) => {
     setIsSubmitting(true);
     try {
       const finalName = tournamentName.trim() || "Tournoi EA FC";
-      // On passe le format
+      // Note: En 2v2, playerNames est déjà mélangé par handlePreviewTeams, 
+      // et le backend respectera cet ordre.
       const tournamentData = await createTournament(filledNames, finalNumGroups, finalName, format);
       
-      toast({ title: 'Succès', description: `Tournoi "${finalName}" (${format}) créé !` });
+      toast({ title: 'Succès', description: `Tournoi "${finalName}" créé !` });
       onComplete(tournamentData); 
     } catch (error) {
       toast({ title: 'Erreur API', description: error.response?.data?.detail || "Impossible de créer le tournoi.", variant: 'destructive' });
@@ -109,8 +119,6 @@ const Step1Registration = ({ onComplete, isAdmin }) => {
 
         {!showNameInputs ? (
           <div className="space-y-6">
-            
-            {/* Choix du Nom */}
             <div>
                <Label htmlFor="tName" className="text-lg text-gray-300 mb-2 block">
                  Nom du Tournoi
@@ -126,7 +134,6 @@ const Step1Registration = ({ onComplete, isAdmin }) => {
                />
             </div>
 
-            {/* Choix du Format */}
             <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
                 <Label className="text-lg text-gray-300 mb-4 block flex items-center gap-2">
                     <Swords className="w-5 h-5 text-cyan-400" /> Mode de Jeu
@@ -164,16 +171,12 @@ const Step1Registration = ({ onComplete, isAdmin }) => {
               )}
             </div>
             
-            <Button
-              onClick={handlePlayerCountSubmit}
-              disabled={!playerCount || parseInt(playerCount) < 4 || isSubmitting}
-              className="w-full py-6 text-lg font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white transition-all duration-300 shadow-lg shadow-cyan-500/30"
-            >
-              Continuer
-              <ArrowRight className="ml-2 w-5 h-5" />
+            <Button onClick={handlePlayerCountSubmit} disabled={!playerCount || parseInt(playerCount) < 4 || isSubmitting} className="w-full py-6 text-lg font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white transition-all duration-300 shadow-lg shadow-cyan-500/30">
+              Continuer <ArrowRight className="ml-2 w-5 h-5" />
             </Button>
           </div>
-        ) : (
+        ) : !showTeamPreview ? (
+          // --- ÉCRAN DE SAISIE DES NOMS ---
           <div className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <div className="bg-gray-800 rounded-lg p-4 border border-gray-700 flex flex-col justify-center">
@@ -192,7 +195,6 @@ const Step1Registration = ({ onComplete, isAdmin }) => {
                         id="numGroups"
                         type="number"
                         min="2"
-                        // Max est le nombre d'équipes en 2v2
                         max={format === '2v2' ? playerNames.length / 2 : playerNames.length}
                         value={numGroups}
                         onChange={(e) => setNumGroups(e.target.value)}
@@ -206,41 +208,59 @@ const Step1Registration = ({ onComplete, isAdmin }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[500px] overflow-y-auto pr-2">
               {playerNames.map((name, index) => (
                 <div key={index} className="space-y-2">
-                  <Label htmlFor={`player-${index}`} className="text-gray-300">
-                    Joueur {index + 1}
-                  </Label>
-                  <Input
-                    id={`player-${index}`}
-                    type="text"
-                    value={name}
-                    onChange={(e) => handleNameChange(index, e.target.value)}
-                    placeholder={`Nom du joueur ${index + 1}`}
-                    className="bg-gray-800 border-gray-600 text-white placeholder:text-gray-500 focus:border-cyan-400 transition-colors"
-                     disabled={isSubmitting}
-                  />
+                  <Label htmlFor={`player-${index}`} className="text-gray-300">Joueur {index + 1}</Label>
+                  <Input id={`player-${index}`} type="text" value={name} onChange={(e) => handleNameChange(index, e.target.value)} placeholder={`Nom du joueur ${index + 1}`} className="bg-gray-800 border-gray-600 text-white placeholder:text-gray-500 focus:border-cyan-400 transition-colors" disabled={isSubmitting} />
                 </div>
               ))}
             </div>
 
             <div className="flex gap-4">
-              <Button
-                onClick={() => { setShowNameInputs(false); setPlayerNames([]); setPlayerCount(''); setNumGroups(''); }}
-                variant="outline"
-                className="flex-1 py-6 text-lg border-gray-600 text-gray-300 hover:bg-gray-800"
-                 disabled={isSubmitting}
-              >
-                Retour
-              </Button>
-              <Button
-                onClick={handleSubmit}
-                disabled={isSubmitting || playerNames.some(name => name.trim() === '')}
-                className="flex-1 py-6 text-lg font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white transition-all duration-300 shadow-lg shadow-cyan-500/30"
-              >
-                 {isSubmitting ? "Création..." : "Valider et Créer les Poules"}
-                 {!isSubmitting && <ArrowRight className="ml-2 w-5 h-5" />}
-              </Button>
+              <Button onClick={() => { setShowNameInputs(false); setPlayerNames([]); setPlayerCount(''); setNumGroups(''); }} variant="outline" className="flex-1 py-6 text-lg border-gray-600 text-gray-300 hover:bg-gray-800" disabled={isSubmitting}>Retour</Button>
+              
+              {format === '2v2' ? (
+                  <Button onClick={handlePreviewTeams} disabled={isSubmitting || playerNames.some(name => name.trim() === '')} className="flex-1 py-6 text-lg font-semibold bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white transition-all duration-300 shadow-lg shadow-purple-500/30">
+                     <Shuffle className="ml-2 w-5 h-5 mr-2" /> Générer les équipes
+                  </Button>
+              ) : (
+                  <Button onClick={handleSubmit} disabled={isSubmitting || playerNames.some(name => name.trim() === '')} className="flex-1 py-6 text-lg font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white transition-all duration-300 shadow-lg shadow-cyan-500/30">
+                     {isSubmitting ? "Création..." : "Valider et Lancer"} <ArrowRight className="ml-2 w-5 h-5" />
+                  </Button>
+              )}
             </div>
           </div>
+        ) : (
+            // --- ÉCRAN DE PRÉVISUALISATION DES ÉQUIPES (2v2 ONLY) ---
+            <div className="space-y-6">
+                <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 text-center">
+                    <h3 className="text-2xl font-bold text-white mb-2">Équipes Générées</h3>
+                    <p className="text-gray-400">Voici les binômes aléatoires. Si cela ne vous convient pas, vous pouvez relancer.</p>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[400px] overflow-y-auto">
+                    {/* On affiche les équipes 2 par 2 */}
+                    {Array.from({ length: playerNames.length / 2 }).map((_, i) => (
+                        <div key={i} className="bg-gradient-to-r from-purple-900/40 to-gray-800 p-4 rounded-lg border border-purple-500/30 flex items-center justify-between">
+                            <span className="font-bold text-purple-300">Équipe {i + 1}</span>
+                            <div className="text-right">
+                                <div className="text-white font-medium">{playerNames[i*2]}</div>
+                                <div className="text-gray-400 text-sm">+ {playerNames[i*2+1]}</div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+                
+                <div className="flex gap-4">
+                    <Button onClick={() => { setShowTeamPreview(false); }} variant="outline" className="flex-1 py-6 text-lg border-gray-600 text-gray-300 hover:bg-gray-800" disabled={isSubmitting}>
+                        Retour
+                    </Button>
+                    <Button onClick={handlePreviewTeams} variant="secondary" className="flex-1 py-6 text-lg font-semibold bg-gray-700 hover:bg-gray-600 text-white" disabled={isSubmitting}>
+                        <Shuffle className="mr-2 w-5 h-5" /> Mélanger à nouveau
+                    </Button>
+                    <Button onClick={handleSubmit} disabled={isSubmitting} className="flex-1 py-6 text-lg font-semibold bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white transition-all duration-300 shadow-lg shadow-green-500/30">
+                        {isSubmitting ? "Création..." : "Valider et Lancer"} <ArrowRight className="ml-2 w-5 h-5" />
+                    </Button>
+                </div>
+            </div>
         )}
       </div>
     </div>
