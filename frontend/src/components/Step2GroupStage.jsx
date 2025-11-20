@@ -14,7 +14,8 @@ const getTargetQualifiedCount = (totalPlayers) => {
   return totalPlayers >= 24 ? 16 : 8;
 };
 
-const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScoreUpdate, onCompleteGroups, isAdmin }) => {
+// MODIFIÉ : On accepte la prop 'format'
+const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScoreUpdate, onCompleteGroups, isAdmin, format }) => {
   const [generatedGroups, setGeneratedGroups] = useState(groups || []);
   const [selectedMatch, setSelectedMatch] = useState(null); 
   const [score1, setScore1] = useState('');
@@ -78,17 +79,15 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
     setIsCompleting(true);
     try {
       await completeGroupStage(tournamentId);
-      // --- MODIFICATION ICI : Force le rechargement ---
       toast({ title: 'Phase de poules terminée !', description: 'Chargement de la phase finale...' });
-      // On attend un tout petit peu pour que le toast s'affiche
       setTimeout(() => {
-          window.location.reload(); // <-- Force le rechargement de la page
+          window.location.reload(); 
       }, 500);
     } catch (error) {
       const errorMsg = error.response?.data?.detail || "Impossible de passer à la suite.";
       toast({ title: 'Erreur', description: errorMsg, variant: 'destructive' });
       console.error("Failed to complete group stage:", error);
-      setIsCompleting(false); // On ne désactive le chargement qu'en cas d'erreur
+      setIsCompleting(false); 
     }
   };
 
@@ -116,7 +115,9 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
     return allPlayers;
   }, [generatedGroups]); 
 
-  const targetQualifiedCount = getTargetQualifiedCount(players.length);
+  // --- MODIFIÉ : Calcul dynamique selon le format ---
+  const entityCount = format === '2v2' ? players.length / 2 : players.length;
+  const targetQualifiedCount = getTargetQualifiedCount(entityCount);
 
 
   return (
@@ -212,11 +213,12 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
              ))}
            </div>
 
+           {/* --- CLASSEMENT GÉNÉRAL --- */}
            {allMatchesPlayed && (
              <div className="mt-12 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 shadow-2xl border border-gray-700">
                <h3 className="text-2xl font-bold text-cyan-400 mb-4 text-center">Classement Général (Provisoire)</h3>
                <p className="text-center text-gray-400 mb-6">
-                 Voici le classement général de tous les joueurs. Les {targetQualifiedCount} premiers (surlignés en vert) seront qualifiés.
+                 Voici le classement général de tous les participants. Les {targetQualifiedCount} premiers (surlignés en vert) seront qualifiés.
                  {isAdmin && " Vous pouvez encore modifier les scores des poules ci-dessus si nécessaire avant de valider."}
                </p>
                
