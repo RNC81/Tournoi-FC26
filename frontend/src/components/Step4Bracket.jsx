@@ -1,5 +1,5 @@
 /* Fichier: frontend/src/components/Step4Bracket.jsx */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Trophy, Edit, Crown, Loader2, Lock, Shuffle, ArrowRight } from 'lucide-react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
@@ -8,7 +8,7 @@ import { Label } from './ui/label';
 import { useToast } from '../hooks/use-toast';
 import { updateScore, redrawKnockout, generateNextRound } from '../api';
 
-const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, onFinish, groups, thirdPlace, isAdmin }) => {
+const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, groups, thirdPlace, isAdmin }) => {
   const [matches, setMatches] = useState(knockoutMatches || []);
   const [selectedMatch, setSelectedMatch] = useState(null);
   const [score1, setScore1] = useState('');
@@ -19,6 +19,8 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
   const [isSavingScore, setIsSavingScore] = useState(false);
   const [isRedrawing, setIsRedrawing] = useState(false);
   const [isGeneratingNext, setIsGeneratingNext] = useState(false);
+  
+  const topRef = useRef(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -27,6 +29,12 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
 
   useEffect(() => {
     setChampion(winner);
+    // Scroll to podium when winner is declared
+    if (winner && topRef.current) {
+        setTimeout(() => {
+             topRef.current.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+    }
   }, [winner]);
 
   useEffect(() => {
@@ -78,15 +86,13 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
     setIsSavingScore(true);
     try {
       const updatedTournament = await updateScore(tournamentId, selectedMatch.id, s1, s2);
-      onScoreUpdate(updatedTournament); 
-
-      // Mise à jour locale
+      
+      // Mise à jour locale immédiate pour fluidité
       if (updatedTournament.winner) setChampion(updatedTournament.winner);
       if (updatedTournament.thirdPlace) setThirdPlaceWinner(updatedTournament.thirdPlace);
 
-      if (updatedTournament.winner) { 
-        onFinish(updatedTournament); 
-      }
+      // Mise à jour globale (le parent gérera le changement d'état "finished")
+      onScoreUpdate(updatedTournament); 
 
       setIsDialogOpen(false);
       setScore1(''); setScore2(''); setSelectedMatch(null);
@@ -186,6 +192,9 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
 
   return (
     <div className="max-w-full mx-auto space-y-8">
+      {/* Ancre pour le scroll automatique */}
+      <div ref={topRef} className="scroll-mt-24"></div>
+
       <div className="text-center">
         <h2 className="text-3xl font-bold text-white mb-4">Tableau Final - Élimination Directe</h2>
          {isAdmin && !champion && matches.length > 0 && !matches.some(m => m.played) && (

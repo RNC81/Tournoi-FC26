@@ -20,7 +20,6 @@ import {
 } from './ui/alert-dialog'; 
 import { Button } from './ui/button'; 
 
-const TOURNAMENT_ID_LS_KEY = 'currentTournamentId';
 const ADMIN_STATUS_LS_KEY = 'isAdmin'; 
 
 const TournamentManager = ({ isAdmin, initialData }) => { 
@@ -33,7 +32,7 @@ const TournamentManager = ({ isAdmin, initialData }) => {
   const [knockoutMatches, setKnockoutMatches] = useState([]);
   const [winner, setWinner] = useState(null);
   const [thirdPlace, setThirdPlace] = useState(null); 
-  const [format, setFormat] = useState('1v1'); // --- NOUVEAU : État pour le format ---
+  const [format, setFormat] = useState('1v1'); 
   
   const [isLoading, setIsLoading] = useState(!initialData); 
   const [isDeleting, setIsDeleting] = useState(false);
@@ -49,24 +48,23 @@ const TournamentManager = ({ isAdmin, initialData }) => {
         return;
     }
     
-    // On met à jour le format (important pour Step2)
     setFormat(data.format || '1v1');
 
     const newStep = data.currentStep || "config";
     
+    // Détection des changements d'état pour les notifications
     if (prevStepRef.current !== newStep && prevStepRef.current !== "loading") {
         if (prevStepRef.current === "groups" && (newStep === "qualified" || newStep === "knockout")) {
             toast({ title: "Mise à jour !", description: "La phase de poules est terminée. Place à la suite !", duration: 5000 });
         }
-        if (data.winner && !winner) {
-             toast({ title: "Tournoi terminé !", description: `Félicitations à ${data.winner} !`, duration: 5000 });
-        }
     }
-    prevStepRef.current = newStep; 
 
-    if (newStep !== currentStep || data.winner !== winner) {
-       // console.log("Updating full state from API data:", data); 
+    // Détection spécifique de la victoire
+    if (data.winner && !winner) {
+         toast({ title: "Tournoi terminé !", description: `Félicitations à ${data.winner} !`, duration: 5000 });
     }
+
+    prevStepRef.current = newStep; 
 
     const tId = data._id || data.id;
     setTournamentId(tId); 
@@ -101,7 +99,7 @@ const TournamentManager = ({ isAdmin, initialData }) => {
     setThirdPlace(data.thirdPlace || null); 
     
     setIsLoading(false); 
-  }, [currentStep, winner, toast]); 
+  }, [winner, toast]); 
 
 
   useEffect(() => {
@@ -125,8 +123,9 @@ const TournamentManager = ({ isAdmin, initialData }) => {
     }
   }, [initialData, tournamentId, updateFullTournamentState]);
 
+  // Polling : On arrête le polling si on est Admin (pas besoin) OU si le tournoi est fini
   useEffect(() => {
-    if (isAdmin || !tournamentId) {
+    if (isAdmin || !tournamentId || currentStep === 'finished') {
       return;
     }
 
@@ -137,19 +136,15 @@ const TournamentManager = ({ isAdmin, initialData }) => {
           updateFullTournamentState(data);
         }
       } catch (error) {
+        // Silent fail for polling
       }
     }, 5000); 
 
     return () => clearInterval(intervalId);
-  }, [isAdmin, tournamentId, updateFullTournamentState]);
+  }, [isAdmin, tournamentId, currentStep, updateFullTournamentState]);
 
 
-  const handleTournamentCreated = (tournamentData) => { updateFullTournamentState(tournamentData); };
-  const handleGroupsDrawn = (tournamentData) => { updateFullTournamentState(tournamentData); };
-  const handleScoreUpdated = (tournamentData) => { updateFullTournamentState(tournamentData); };
-  const handleGroupStageCompleted = (tournamentData) => { updateFullTournamentState(tournamentData); };
-  const handleKnockoutUpdated = (tournamentData) => { updateFullTournamentState(tournamentData); };
-  const handleTournamentFinished = (tournamentData) => { updateFullTournamentState(tournamentData); };
+  const handleTournamentUpdate = (tournamentData) => { updateFullTournamentState(tournamentData); };
 
   const handleDeleteTournament = async () => {
         if (!isAdmin || !tournamentId) return; 
@@ -164,15 +159,6 @@ const TournamentManager = ({ isAdmin, initialData }) => {
         }
   };
   
-  const handleResetTournament = () => { /* Legacy placeholder */ };
-
-  const handleAdminLogout = () => {
-      localStorage.removeItem(ADMIN_STATUS_LS_KEY);
-      localStorage.removeItem('authToken');
-      window.location.href = '/'; 
-  };
-
-
   if (isLoading || isDeleting) {
       return (
           <div className="flex justify-center items-center min-h-screen">
@@ -198,17 +184,16 @@ const TournamentManager = ({ isAdmin, initialData }) => {
   const renderStep = () => {
     switch (currentStep) {
       case 'config':
-        return <Step1Registration onComplete={handleTournamentCreated} isAdmin={isAdmin} />;
+        return <Step1Registration onComplete={handleTournamentUpdate} isAdmin={isAdmin} />;
       case 'groups':
-        // --- MODIFICATION : On passe 'format' au Step2 ---
-        return <Step2GroupStage tournamentId={tournamentId} players={players} groups={groups} onGroupsDrawn={handleGroupsDrawn} onScoreUpdate={handleScoreUpdated} onCompleteGroups={handleGroupStageCompleted} isAdmin={isAdmin} format={format} />;
+        return <Step2GroupStage tournamentId={tournamentId} players={players} groups={groups} onGroupsDrawn={handleTournamentUpdate} onScoreUpdate={handleTournamentUpdate} onCompleteGroups={handleTournamentUpdate} isAdmin={isAdmin} format={format} />;
       case 'qualified': 
-        return <Step3Qualification tournamentId={tournamentId} groups={groups} qualifiedPlayers={qualifiedPlayers} eliminatedPlayers={eliminatedPlayers} onKnockoutDrawComplete={handleKnockoutUpdated} isAdmin={isAdmin} />;
+        return <Step3Qualification tournamentId={tournamentId} groups={groups} qualifiedPlayers={qualifiedPlayers} eliminatedPlayers={eliminatedPlayers} onKnockoutDrawComplete={handleTournamentUpdate} isAdmin={isAdmin} />;
       case 'knockout': 
       case 'finished': 
-        return <Step4Bracket tournamentId={tournamentId} knockoutMatches={knockoutMatches} onScoreUpdate={handleKnockoutUpdated} winner={winner} onFinish={handleTournamentFinished} groups={groups} thirdPlace={thirdPlace} isAdmin={isAdmin} />;
+        return <Step4Bracket tournamentId={tournamentId} knockoutMatches={knockoutMatches} onScoreUpdate={handleTournamentUpdate} winner={winner} groups={groups} thirdPlace={thirdPlace} isAdmin={isAdmin} />;
       default:
-        return isAdmin ? <Step1Registration onComplete={handleTournamentCreated} isAdmin={isAdmin} /> : null;
+        return isAdmin ? <Step1Registration onComplete={handleTournamentUpdate} isAdmin={isAdmin} /> : null;
     }
   };
 
