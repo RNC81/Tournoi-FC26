@@ -34,6 +34,37 @@ export const getPublicTournaments = async () => {
   }
 };
 
+// --- SUPER ADMIN API ---
+export const getPendingUsers = async () => {
+    try {
+        const response = await apiClient.get('/api/admin/users/pending');
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching pending users:", error);
+        throw error;
+    }
+};
+
+export const approveUser = async (username) => {
+    try {
+        const response = await apiClient.post(`/api/admin/users/${username}/approve`);
+        return response.data;
+    } catch (error) {
+         console.error("Error approving user:", error);
+         throw error;
+    }
+};
+
+export const rejectUser = async (username) => {
+    try {
+        const response = await apiClient.post(`/api/admin/users/${username}/reject`);
+        return response.data;
+    } catch (error) {
+         console.error("Error rejecting user:", error);
+         throw error;
+    }
+};
+
 // --- MODIFICATION : Ajout de 'format' ---
 export const createTournament = async (playerNames, numGroups, tournamentName, format) => {
   try {
@@ -41,7 +72,7 @@ export const createTournament = async (playerNames, numGroups, tournamentName, f
         playerNames, 
         numGroups,
         tournamentName,
-        format // <-- NOUVEAU
+        format
     });
     return response.data;
   } catch (error) {
@@ -49,8 +80,6 @@ export const createTournament = async (playerNames, numGroups, tournamentName, f
     throw error; 
   }
 };
-
-// ... (Autres fonctions inchangées : delete, getMyTournaments, getTournament...) ...
 
 export const deleteTournament = async (tournamentId) => {
     try {

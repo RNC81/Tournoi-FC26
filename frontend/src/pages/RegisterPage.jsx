@@ -1,3 +1,4 @@
+// Fichier: frontend/src/pages/RegisterPage.jsx
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -23,12 +24,16 @@ const RegisterPage = () => {
     }
     
     setLoading(true);
-    const success = await register(username, password);
-    if (success) {
-      toast({ title: 'Compte créé !', description: 'Vous pouvez maintenant vous connecter.' });
-      navigate('/login'); // Redirige vers la page de connexion
+    const result = await register(username, password);
+    if (result.success) {
+      toast({ 
+          title: 'Inscription reçue', 
+          description: 'Votre compte a été créé. Un Super Admin doit le valider avant que vous puissiez vous connecter.',
+          duration: 8000
+      });
+      navigate('/login'); 
     } else {
-      toast({ title: 'Erreur', description: 'Ce nom d\'utilisateur est peut-être déjà pris.', variant: 'destructive' });
+      toast({ title: 'Erreur', description: result.message, variant: 'destructive' });
       setLoading(false);
     }
   };
@@ -36,7 +41,10 @@ const RegisterPage = () => {
   return (
     <div className="flex justify-center items-center min-h-screen">
       <div className="w-full max-w-md p-8 space-y-6 bg-gray-900 border border-gray-700 rounded-lg shadow-xl">
-        <h1 className="text-3xl font-bold text-center text-white">Créer un Compte Admin</h1>
+        <h1 className="text-3xl font-bold text-center text-white">Demande de Compte</h1>
+        <p className="text-center text-gray-400 text-sm">
+            Votre compte devra être validé par un Super Admin.
+        </p>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="username" className="text-gray-300">Nom d'utilisateur</Label>

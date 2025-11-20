@@ -10,22 +10,24 @@ import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import PublicListPage from './pages/PublicListPage';
 import TournamentPage from './pages/TournamentPage';
-import CreateTournamentPage from './pages/CreateTournamentPage'; // <-- ASSUREZ-VOUS QUE CETTE LIGNE EST PRÉSENTE
+import CreateTournamentPage from './pages/CreateTournamentPage';
+import SuperAdminDashboard from './pages/SuperAdminDashboard'; // <-- Nouveau
 
-// Un composant simple pour protéger les routes
+// Protection basique
 const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth(); // Ajout de 'loading'
-
-  // Attendre que l'authentification soit vérifiée au démarrage
-  if (loading) {
-    return null; // Affiche une page blanche (ou un loader) pendant la vérification
-  }
-
-  if (!isAuthenticated) {
-    // Redirige vers la page de connexion
-    return <Navigate to="/login" replace />;
-  }
+  const { isAuthenticated, loading } = useAuth();
+  if (loading) return null;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
   return children;
+};
+
+// Protection Super Admin
+const SuperAdminRoute = ({ children }) => {
+    const { isAuthenticated, user, loading } = useAuth();
+    if (loading) return null;
+    if (!isAuthenticated) return <Navigate to="/login" replace />;
+    if (user?.role !== 'super_admin') return <Navigate to="/dashboard" replace />;
+    return children;
 };
 
 function App() {
@@ -39,7 +41,7 @@ function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/tournament/:id" element={<TournamentPage />} />
 
-          {/* Routes Protégées (Admin) */}
+          {/* Routes Admin (Organisateur) */}
           <Route 
             path="/dashboard" 
             element={
@@ -48,7 +50,6 @@ function App() {
               </ProtectedRoute>
             } 
           />
-          {/* Route de création de tournoi */}
           <Route 
             path="/create-tournament" 
             element={
@@ -58,7 +59,16 @@ function App() {
             } 
           />
           
-          {/* Redirection par défaut */}
+          {/* Route Super Admin */}
+          <Route 
+            path="/admin" 
+            element={
+                <SuperAdminRoute>
+                    <SuperAdminDashboard />
+                </SuperAdminRoute>
+            } 
+          />
+          
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
