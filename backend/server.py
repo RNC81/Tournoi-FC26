@@ -1,23 +1,28 @@
 # Fichier: backend/server.py
-from fastapi import FastAPI, APIRouter, HTTPException, Body, Depends, status
+from fastapi import FastAPI, APIRouter, HTTPException, Body, Depends, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict, field_validator
-from typing import List, Optional, Dict, Any, Union
+from pydantic import BaseModel, Field, ConfigDict, field_validator, StringConstraints
+from typing import List, Optional, Dict, Any, Union, Annotated
 import uuid
 from datetime import datetime, timezone, timedelta
 import random
 import math
 from bson import ObjectId
 
-# --- Imports pour l'authentification ---
+# --- Imports Sécurité ---
 from passlib.context import CryptContext
 from jose import JWTError, jwt
+import bleach # Anti-XSS
+from slowapi import Limiter, _rate_limit_exceeded_handler # Rate Limiting
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 # --- Configuration initiale ---
 ROOT_DIR = Path(__file__).parent
@@ -26,10 +31,13 @@ load_dotenv(ROOT_DIR / '.env')
 # --- Constantes d'authentification ---
 SECRET_KEY = os.environ.get("SECRET_KEY")
 if not SECRET_KEY:
-    logging.warning("SECRET_KEY non définie, utilisation d'une clé par défaut")
+    logging.warning("SECRET_KEY non définie, utilisation d'une clé par défaut (NON SÉCURISÉ EN PROD)")
     SECRET_KEY = "votre_mot_de_passe_secret_12345_par_defaut"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30 
+
+# --- Rate Limiter Setup ---
+limiter = Limiter(key_func=get_remote_address)
 
 # --- Configuration Passlib ---
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -48,31 +56,62 @@ tournaments_collection = db["tournaments"]
 users_collection = db["users"]
 
 # --- FastAPI App et Routers ---
-app = FastAPI(title="Tournament API")
+app = FastAPI(title="Tournament API - Secured V4")
+
+# Ajout du handler pour les erreurs de Rate Limit
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 api_router = APIRouter(prefix="/api")
 auth_router = APIRouter(prefix="/api/auth")
 
-# --- Modèles Pydantic ---
+# --- Middleware de Sécurité HTTP (Headers) ---
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        # Protection contre le Clickjacking (affichage dans une iframe)
+        response.headers["X-Frame-Options"] = "DENY"
+        # Protection contre le MIME Sniffing
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        # HSTS (Force HTTPS) - À activer uniquement si vous avez HTTPS configuré sur Render
+        # response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        # XSS Protection (Browser)
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        return response
+
+app.add_middleware(SecurityHeadersMiddleware)
+
+# --- Fonctions de Sanitization (Anti-XSS) ---
+def sanitize_text(text: str) -> str:
+    if not text: return ""
+    # bleach.clean supprime toutes les balises HTML et attributs dangereux
+    return bleach.clean(text.strip(), tags=[], attributes={}, strip=True)
+
+# --- Modèles Pydantic Renforcés (Input Validation) ---
+
+# Validateur pour Username : Alphanumérique + _ - . uniquement. 
+# Empêche les injections NoSQL basées sur des objets ou caractères spéciaux.
+UsernameType = Annotated[str, StringConstraints(pattern=r"^[a-zA-Z0-9_.-]+$", min_length=3, max_length=30)]
 
 class PlayerStats(BaseModel):
     name: str
     real_players: Optional[List[str]] = None
-    played: int = 0
-    won: int = 0
-    drawn: int = 0
-    lost: int = 0
-    goalsFor: int = 0
-    goalsAgainst: int = 0
+    played: int = Field(ge=0, default=0)
+    won: int = Field(ge=0, default=0)
+    drawn: int = Field(ge=0, default=0)
+    lost: int = Field(ge=0, default=0)
+    goalsFor: int = Field(ge=0, default=0)
+    goalsAgainst: int = Field(ge=0, default=0)
     goalDiff: int = 0
-    points: int = 0
+    points: int = Field(ge=0, default=0)
     groupPosition: Optional[int] = None
 
 class GroupMatch(BaseModel):
     id: str = Field(default_factory=lambda: f"match_{uuid.uuid4()}")
     player1: str
     player2: str
-    score1: Optional[int] = None
-    score2: Optional[int] = None
+    score1: Optional[int] = Field(ge=0, default=None) # Score ne peut pas être négatif
+    score2: Optional[int] = Field(ge=0, default=None)
     played: bool = False
 
 class Group(BaseModel):
@@ -82,18 +121,18 @@ class Group(BaseModel):
 
 class KnockoutMatch(BaseModel):
     id: str = Field(default_factory=lambda: f"match_{uuid.uuid4()}")
-    round: int
-    matchIndex: int
+    round: int = Field(ge=0)
+    matchIndex: int = Field(ge=0)
     player1: Optional[str] = None
     player2: Optional[str] = None
-    score1: Optional[int] = None
-    score2: Optional[int] = None
+    score1: Optional[int] = Field(ge=0, default=None)
+    score2: Optional[int] = Field(ge=0, default=None)
     winner: Optional[str] = None
     played: bool = False
 
 class Tournament(BaseModel):
     id: str = Field(default_factory=lambda: f"tournoi_{uuid.uuid4()}", alias="_id")
-    name: str = "Tournoi EA FC"
+    name: str
     format: str = "1v1"
     players: List[str]
     groups: List[Group] = []
@@ -115,25 +154,44 @@ class Tournament(BaseModel):
 class TournamentCreateRequest(BaseModel):
     playerNames: List[str]
     tournamentName: Optional[str] = "Tournoi EA FC"
-    numGroups: Optional[int] = None
+    numGroups: Optional[int] = Field(None, ge=2, le=16) # Limite réaliste pour les poules
     format: Optional[str] = "1v1"
 
     @field_validator('playerNames')
-    def check_player_count(cls, v):
+    def validate_and_sanitize_players(cls, v):
         if len(v) < 4:
             raise ValueError("Minimum 4 joueurs requis")
-        clean_names = [name.replace("<", "").replace(">", "").strip() for name in v]
-        return clean_names
+        if len(v) > 64:
+            raise ValueError("Maximum 64 joueurs autorisés")
+        
+        cleaned = []
+        for name in v:
+            sanitized = sanitize_text(name)
+            if len(sanitized) < 2:
+                raise ValueError(f"Nom de joueur invalide ou trop court : {name}")
+            cleaned.append(sanitized)
+        
+        # Vérification doublons après nettoyage
+        if len(set(cleaned)) != len(cleaned):
+             raise ValueError("Les noms des joueurs doivent être uniques (après nettoyage).")
+        return cleaned
+
+    @field_validator('tournamentName')
+    def sanitize_tournament_name(cls, v):
+        clean = sanitize_text(v)
+        if len(clean) < 3:
+            return "Tournoi EA FC" # Fallback sécurisé
+        return clean
+
+    @field_validator('format')
+    def validate_format(cls, v):
+        if v not in ["1v1", "2v2"]:
+            raise ValueError("Format invalide (1v1 ou 2v2 uniquement)")
+        return v
 
 class ScoreUpdateRequest(BaseModel):
-    score1: int
-    score2: int
-
-    @field_validator('score1', 'score2')
-    def check_non_negative(cls, v):
-        if v < 0:
-            raise ValueError("Les scores ne peuvent pas être négatifs")
-        return v
+    score1: int = Field(ge=0, le=99) # Anti-troll: max 99 buts
+    score2: int = Field(ge=0, le=99)
 
 class UserBase(BaseModel):
     username: str
@@ -147,16 +205,16 @@ class UserBase(BaseModel):
     )
 
 class UserCreate(BaseModel):
-    username: str
-    password: str
+    username: UsernameType # Utilise la regex stricte définie plus haut
+    password: str = Field(min_length=8) # Renforcement min mot de passe
 
 class UserLogin(BaseModel):
-    username: str
+    username: str # Pas de regex stricte ici pour permettre le login même si on change les règles plus tard, mais on vérifie en base.
     password: str
 
 class UserUpdate(BaseModel):
-    username: Optional[str] = None
-    password: Optional[str] = None
+    username: Optional[UsernameType] = None
+    password: Optional[str] = Field(None, min_length=8)
 
 class UserInDB(UserBase):
     id: str = Field(alias="_id")
@@ -194,6 +252,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     return encoded_jwt
 
 async def get_user_from_db(username: str):
+    # Mongo Query sécurisée (recherche par champ exact)
     user = await users_collection.find_one({"username": username})
     if user:
         if "status" not in user: user["status"] = "active"
@@ -235,15 +294,13 @@ async def get_current_super_admin(current_user: UserInDB = Depends(get_current_u
 # --- Routes d'Authentification ---
 
 @auth_router.post("/register", response_model=UserBase, status_code=201)
-async def register_user(user_in: UserCreate):
-    clean_username = user_in.username.replace("<", "").replace(">", "").strip()
+@limiter.limit("5/minute") # Rate Limit: 5 créations par minute max par IP
+async def register_user(request: Request, user_in: UserCreate):
+    # La validation Regex Pydantic a déjà eu lieu ici pour username
     
-    existing_user = await users_collection.find_one({"username": clean_username})
+    existing_user = await users_collection.find_one({"username": user_in.username})
     if existing_user:
         raise HTTPException(status_code=400, detail="Ce nom d'utilisateur est déjà pris")
-    
-    if len(user_in.password) < 4:
-         raise HTTPException(status_code=400, detail="Le mot de passe doit faire au moins 4 caractères")
     
     user_count = await users_collection.count_documents({})
     if user_count == 0:
@@ -255,7 +312,7 @@ async def register_user(user_in: UserCreate):
 
     hashed_password = get_password_hash(user_in.password)
     user_doc = {
-        "username": clean_username, 
+        "username": user_in.username, 
         "hashed_password": hashed_password,
         "role": role,
         "status": status_account,
@@ -269,11 +326,16 @@ async def register_user(user_in: UserCreate):
     return UserBase(**created_user)
 
 @auth_router.post("/login", response_model=Token)
-async def login_for_access_token(user_in: UserLogin):
-    logging.info(f"Tentative de connexion pour: {user_in.username}")
+@limiter.limit("10/minute") # Rate Limit: 10 tentatives par minute max (Anti-Brute Force)
+async def login_for_access_token(request: Request, user_in: UserLogin):
+    # Assainissement basique de l'entrée username pour la log (éviter log injection)
+    safe_username = sanitize_text(user_in.username)
+    logging.info(f"Tentative de connexion pour: {safe_username}")
+    
     user = await get_user_from_db(user_in.username)
     
     if not user or not verify_password(user_in.password, user.hashed_password):
+        # On renvoie une erreur générique pour ne pas indiquer si c'est le user ou le mdp qui est faux
         raise HTTPException(status_code=401, detail="Identifiants incorrects", headers={"WWW-Authenticate": "Bearer"})
     
     if user.status == "pending":
@@ -298,16 +360,13 @@ async def update_profile(updates: UserUpdate, current_user: UserInDB = Depends(g
     update_data = {}
     
     if updates.username:
-        clean_username = updates.username.replace("<", "").replace(">", "").strip()
-        if clean_username != current_user.username:
-             existing = await users_collection.find_one({"username": clean_username})
+        if updates.username != current_user.username:
+             existing = await users_collection.find_one({"username": updates.username})
              if existing:
                  raise HTTPException(status_code=400, detail="Ce nom d'utilisateur est déjà pris")
-             update_data["username"] = clean_username
+             update_data["username"] = updates.username
     
     if updates.password:
-        if len(updates.password) < 4:
-             raise HTTPException(status_code=400, detail="Le mot de passe doit faire au moins 4 caractères")
         update_data["hashed_password"] = get_password_hash(updates.password)
     
     if not update_data:
@@ -329,7 +388,6 @@ async def get_pending_users(current_user: UserInDB = Depends(get_current_super_a
 
 @api_router.get("/admin/users", response_model=List[UserBase])
 async def get_all_users(current_user: UserInDB = Depends(get_current_super_admin)):
-    # On exclut le mot de passe du retour bien sûr (géré par UserBase qui n'a pas le champ)
     users = await users_collection.find({}).sort("createdAt", -1).to_list(500)
     for u in users: u["_id"] = str(u["_id"])
     return users
@@ -367,9 +425,10 @@ async def reject_user(username: str, current_user: UserInDB = Depends(get_curren
 
 
 # --- Fonctions Utilitaires (Tournoi) ---
-# ... (Fonctions create_groups_logic, update_group_standings_logic, determine_qualifiers_logic, generate_knockout_matches_logic inchangées) ...
+# ... (create_groups_logic, update_group_standings_logic, etc. - Logique inchangée, mais données déjà nettoyées par Pydantic)
 
 def create_groups_logic(players: List[str], num_groups: Optional[int] = None, format: str = "1v1") -> List[Group]:
+    # Les noms 'players' sont déjà sanitized par Pydantic
     entities = []
     if format == "2v2":
         for i in range(0, len(players), 2):
@@ -380,10 +439,12 @@ def create_groups_logic(players: List[str], num_groups: Optional[int] = None, fo
                  entities.append(PlayerStats(name=players[i], real_players=[players[i]]))
     else:
         entities = [PlayerStats(name=p) for p in players]
+    
     totalEntities = len(entities)
     if num_groups is None or num_groups <= 1:
         num_groups = math.ceil(totalEntities / 4)
         if totalEntities > 8 and totalEntities % 4 in [1, 2]: num_groups = math.floor(totalEntities / 4) 
+    
     shuffled_entities = random.sample(entities, totalEntities)
     base_size = totalEntities // num_groups
     remainder = totalEntities % num_groups
@@ -479,13 +540,27 @@ async def create_tournament(
     request: TournamentCreateRequest, 
     current_user: UserInDB = Depends(get_current_user)
 ): 
+    # Les données sont validées et nettoyées par Pydantic (TournamentCreateRequest)
     player_names = request.playerNames
-    if len(set(player_names)) != len(player_names): raise HTTPException(status_code=400, detail="Les noms des joueurs doivent être uniques")
-    if request.format == "2v2" and len(player_names) % 2 != 0: raise HTTPException(status_code=400, detail="Pour un tournoi 2v2, le nombre de joueurs doit être pair.")
+    
+    if request.format == "2v2" and len(player_names) % 2 != 0: 
+        raise HTTPException(status_code=400, detail="Pour un tournoi 2v2, le nombre de joueurs doit être pair.")
+    
     generated_groups = create_groups_logic(player_names, request.numGroups, request.format or "1v1")
-    new_tournament = Tournament(name=request.tournamentName or f"Tournoi du {datetime.now(timezone.utc).strftime('%d/%m/%Y')}", players=player_names, currentStep="groups", groups=generated_groups, owner_username=current_user.username, format=request.format or "1v1")
+    
+    new_tournament = Tournament(
+        name=request.tournamentName, # Déjà nettoyé
+        players=player_names, 
+        currentStep="groups", 
+        groups=generated_groups, 
+        owner_username=current_user.username, 
+        format=request.format or "1v1"
+    )
+    
     t_dict = new_tournament.model_dump(by_alias=True)
-    t_dict["createdAt"] = new_tournament.createdAt; t_dict["updatedAt"] = new_tournament.updatedAt
+    t_dict["createdAt"] = new_tournament.createdAt
+    t_dict["updatedAt"] = new_tournament.updatedAt
+    
     res = await tournaments_collection.insert_one(t_dict)
     created = await tournaments_collection.find_one({"_id": res.inserted_id})
     if created: created["_id"] = str(created["_id"])
@@ -502,12 +577,13 @@ async def complete_groups_and_draw_knockout(tournament_id: str):
     qualified_entities = determine_qualifiers_logic(tournament.groups, len(tournament.players))
     final_qualified_list = qualified_entities 
     if tournament.format == "2v2":
+        # Logique 2v2 reshuffle (inchangée)
         previous_teams_sets = []
         for g in tournament.groups:
             for p in g.players:
                 if p.real_players: previous_teams_sets.append(set(p.real_players))
                 else:
-                    parts = p.name.split(' + '); 
+                    parts = p.name.split(' + ')
                     if len(parts) == 2: previous_teams_sets.append(set(parts))
         individual_pool = []
         all_stats_map = {p.name: p for g in tournament.groups for p in g.players}
@@ -620,6 +696,7 @@ async def update_match_score(tournament_id: str, match_id: str, scores: ScoreUpd
     if not t: raise HTTPException(status_code=404, detail="Tournoi non trouvé")
     tournament = t
     match_found = False
+    # ... (Logique Score update identique à la V4 mais avec ScoreUpdateRequest validé)
     if tournament.get("groups"):
         for group in tournament["groups"]:
             for match in group.get("matches", []):
@@ -725,21 +802,16 @@ async def startup():
     try: 
         await client.admin.command('ping')
         logging.info(f"Connected to DB: {db_name}")
+        # (Migration Logic from previous step retained here...)
         users_count = await users_collection.count_documents({})
         if users_count > 0:
-            await users_collection.update_many(
-                {"status": {"$exists": False}}, 
-                {"$set": {"status": "active", "role": "admin"}}
-            )
+            await users_collection.update_many({"status": {"$exists": False}}, {"$set": {"status": "active", "role": "admin"}})
             super_admin = await users_collection.find_one({"role": "super_admin"})
             if not super_admin:
                 first_user = await users_collection.find_one({}, sort=[("createdAt", 1)])
                 if first_user:
-                    await users_collection.update_one(
-                        {"_id": first_user["_id"]}, 
-                        {"$set": {"role": "super_admin", "status": "active"}}
-                    )
-                    logging.info(f"MIGRATION: {first_user['username']} promu Super Admin par défaut.")
+                    await users_collection.update_one({"_id": first_user["_id"]}, {"$set": {"role": "super_admin", "status": "active"}})
+                    logging.info(f"MIGRATION: {first_user['username']} promu Super Admin.")
     except Exception as e: 
         logging.error(f"DB Connection/Migration Error: {e}")
 
