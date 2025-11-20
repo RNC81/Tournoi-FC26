@@ -1,3 +1,4 @@
+// Fichier: frontend/src/pages/LoginPage.jsx
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -18,12 +19,16 @@ const LoginPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    const success = await login(username, password);
-    if (success) {
+    
+    // login() renvoie maintenant un objet { success: boolean, message?: string }
+    const result = await login(username, password);
+    
+    if (result.success) {
       toast({ title: 'Connexion réussie !' });
-      navigate('/dashboard'); // Redirige vers le tableau de bord
+      navigate('/dashboard'); 
     } else {
-      toast({ title: 'Erreur', description: 'Nom d\'utilisateur ou mot de passe incorrect.', variant: 'destructive' });
+      // Affichage de l'erreur exacte (ex: "Compte en attente")
+      toast({ title: 'Erreur', description: result.message || 'Identifiants incorrects.', variant: 'destructive' });
       setLoading(false);
     }
   };

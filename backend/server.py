@@ -29,7 +29,7 @@ if not SECRET_KEY:
     logging.warning("SECRET_KEY non définie, utilisation d'une clé par défaut")
     SECRET_KEY = "votre_mot_de_passe_secret_12345_par_defaut"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30 # Session Timeout : 30 minutes (Conformité)
+ACCESS_TOKEN_EXPIRE_MINUTES = 30 # Session Timeout : 30 minutes
 
 # --- Configuration Passlib ---
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -122,7 +122,6 @@ class TournamentCreateRequest(BaseModel):
     def check_player_count(cls, v):
         if len(v) < 4:
             raise ValueError("Minimum 4 joueurs requis")
-        # Sanitization basique : Supprimer les caractères dangereux
         clean_names = [name.replace("<", "").replace(">", "").strip() for name in v]
         return clean_names
 
@@ -138,8 +137,8 @@ class ScoreUpdateRequest(BaseModel):
 
 class UserBase(BaseModel):
     username: str
-    role: str = "admin" # admin, super_admin
-    status: str = "pending" # pending, active, banned, rejected
+    role: str = "admin" 
+    status: str = "pending" 
     createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     model_config = ConfigDict(
@@ -193,6 +192,10 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 async def get_user_from_db(username: str):
     user = await users_collection.find_one({"username": username})
     if user:
+        # Migration "On-the-fly" pour les vieux objets sans status/role
+        if "status" not in user: user["status"] = "active" # On assume actif pour les vieux comptes
+        if "role" not in user: user["role"] = "admin"
+        
         user["_id"] = str(user["_id"])
         return UserInDB(**user)
     return None
@@ -217,7 +220,6 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     if user is None:
         raise credentials_exception
     
-    # Vérification supplémentaire du statut à chaque requête
     if user.status != "active":
          raise HTTPException(status_code=403, detail="Compte inactif ou banni.")
          
@@ -232,7 +234,6 @@ async def get_current_super_admin(current_user: UserInDB = Depends(get_current_u
 
 @auth_router.post("/register", response_model=UserBase, status_code=201)
 async def register_user(user_in: UserCreate):
-    # Sanitization username
     clean_username = user_in.username.replace("<", "").replace(">", "").strip()
     
     existing_user = await users_collection.find_one({"username": clean_username})
@@ -242,16 +243,14 @@ async def register_user(user_in: UserCreate):
     if len(user_in.password) < 4:
          raise HTTPException(status_code=400, detail="Le mot de passe doit faire au moins 4 caractères")
     
-    # Logique Super Admin Bootstrapping : Si c'est le 1er user, il est Super Admin et Actif
+    # Si 0 user total => Super Admin / Active. Sinon Admin / Pending.
     user_count = await users_collection.count_documents({})
     if user_count == 0:
         role = "super_admin"
         status_account = "active"
-        logging.info(f"Premier utilisateur créé ({clean_username}) -> Super Admin / Active")
     else:
         role = "admin"
         status_account = "pending"
-        logging.info(f"Nouvel utilisateur ({clean_username}) -> Admin / Pending")
 
     hashed_password = get_password_hash(user_in.password)
     user_doc = {
@@ -284,7 +283,6 @@ async def login_for_access_token(user_in: UserLogin):
 
     try:
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-        # On inclut le rôle dans le token
         access_token = create_access_token(
             data={"sub": user.username, "role": user.role}, 
             expires_delta=access_token_expires
@@ -310,7 +308,6 @@ async def approve_user(username: str, current_user: UserInDB = Depends(get_curre
     await users_collection.update_one({"username": username}, {"$set": {"status": "active"}})
     updated_user = await users_collection.find_one({"username": username})
     updated_user["_id"] = str(updated_user["_id"])
-    logging.info(f"Utilisateur {username} approuvé par {current_user.username}")
     return UserBase(**updated_user)
 
 @api_router.post("/admin/users/{username}/reject", response_model=UserBase)
@@ -321,13 +318,10 @@ async def reject_user(username: str, current_user: UserInDB = Depends(get_curren
     await users_collection.update_one({"username": username}, {"$set": {"status": "rejected"}})
     updated_user = await users_collection.find_one({"username": username})
     updated_user["_id"] = str(updated_user["_id"])
-    logging.info(f"Utilisateur {username} rejeté par {current_user.username}")
     return UserBase(**updated_user)
 
 
 # --- Fonctions Utilitaires (Tournoi) ---
-# ... (Le reste du code Tournoi reste inchangé : create_groups_logic, etc.) ...
-
 def create_groups_logic(players: List[str], num_groups: Optional[int] = None, format: str = "1v1") -> List[Group]:
     entities = []
     if format == "2v2":
@@ -465,7 +459,7 @@ async def complete_groups_and_draw_knockout(tournament_id: str):
     final_qualified_list = qualified_entities 
 
     if tournament.format == "2v2":
-        # ... (Logique 2v2 reshuffle inchangée) ...
+        # Logique 2v2 reshuffle...
         previous_teams_sets = []
         for g in tournament.groups:
             for p in g.players:
@@ -586,7 +580,7 @@ async def update_match_score(tournament_id: str, match_id: str, scores: ScoreUpd
     if not t: raise HTTPException(status_code=404, detail="Tournoi non trouvé")
     tournament = t
     match_found = False
-    # ... (Logique Score Update - Inchangée) ...
+    
     if tournament.get("groups"):
         for group in tournament["groups"]:
             for match in group.get("matches", []):
@@ -689,8 +683,33 @@ app.add_middleware(
 logging.basicConfig(level=logging.INFO)
 @app.on_event("startup")
 async def startup():
-    try: await client.admin.command('ping'); logging.info(f"Connected to DB: {db_name}")
-    except Exception as e: logging.error(f"DB Connection Error: {e}")
+    try: 
+        await client.admin.command('ping')
+        logging.info(f"Connected to DB: {db_name}")
+        
+        # --- MIGRATION V4 : Bootstrap Super Admin & Fix Old Users ---
+        users_count = await users_collection.count_documents({})
+        if users_count > 0:
+            # 1. On répare les vieux users (pas de status => active)
+            await users_collection.update_many(
+                {"status": {"$exists": False}}, 
+                {"$set": {"status": "active", "role": "admin"}}
+            )
+            
+            # 2. On s'assure qu'il y a un Super Admin. Sinon, le premier user créé le devient.
+            super_admin = await users_collection.find_one({"role": "super_admin"})
+            if not super_admin:
+                first_user = await users_collection.find_one({}, sort=[("createdAt", 1)])
+                if first_user:
+                    await users_collection.update_one(
+                        {"_id": first_user["_id"]}, 
+                        {"$set": {"role": "super_admin", "status": "active"}}
+                    )
+                    logging.info(f"MIGRATION: {first_user['username']} promu Super Admin par défaut.")
+
+    except Exception as e: 
+        logging.error(f"DB Connection/Migration Error: {e}")
+
 @app.on_event("shutdown")
 async def shutdown(): client.close()
 
