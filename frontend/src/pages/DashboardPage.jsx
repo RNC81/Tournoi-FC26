@@ -2,10 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
-import { useNavigate, Link } from 'react-router-dom'; // Ajout de Link
-import { getMyTournaments } from '../api'; // API pour charger les tournois
-import { Loader2, Plus, LogOut, ArrowRight, Trophy } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom'; 
+import { getMyTournaments } from '../api'; 
+import { Loader2, Plus, LogOut, ArrowRight, Trophy, ShieldAlert } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
+import { Badge } from '../components/ui/badge';
 
 // Helper pour formater la date
 const formatDate = (dateString) => {
@@ -48,17 +49,35 @@ const DashboardPage = () => {
   return (
     <div className="min-h-screen w-full py-8 px-4">
       <div className="max-w-7xl mx-auto">
-        <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
-          <h1 className="text-3xl font-bold text-white">
-            Tableau de Bord ({user?.username})
-          </h1>
-          <div className="flex gap-2">
+        <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+          <div className="flex flex-col items-start">
+             <h1 className="text-3xl font-bold text-white flex items-center gap-3">
+                Tableau de Bord
+                {user?.role === 'super_admin' && (
+                    <Badge variant="destructive" className="text-sm px-2 py-1">Super Admin</Badge>
+                )}
+             </h1>
+             <p className="text-gray-400 text-sm mt-1">Bienvenue, {user?.username}</p>
+          </div>
+          
+          <div className="flex flex-wrap gap-2 justify-center md:justify-end">
+            {/* --- BOUTON SUPER ADMIN (Visible uniquement si Super Admin) --- */}
+            {user?.role === 'super_admin' && (
+                <Button 
+                    variant="secondary" 
+                    onClick={() => navigate('/admin')} 
+                    className="bg-red-900/30 text-red-400 border border-red-900 hover:bg-red-900/50"
+                >
+                    <ShieldAlert className="mr-2 w-4 h-4" /> Administration
+                </Button>
+            )}
+
             <Button variant="outline" onClick={handleLogout} className="border-gray-600 text-gray-300 hover:bg-gray-800">
-              <LogOut className="mr-2" />
+              <LogOut className="mr-2 w-4 h-4" />
               Déconnexion
             </Button>
             <Button onClick={() => navigate('/create-tournament')} className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white">
-              <Plus className="mr-2" />
+              <Plus className="mr-2 w-4 h-4" />
               Créer un tournoi
             </Button>
           </div>
@@ -93,11 +112,11 @@ const DashboardPage = () => {
                     <div className="flex items-center gap-4 mt-4 sm:mt-0">
                       {tournoi.winner ? (
                         <span className="flex items-center text-sm font-medium text-yellow-400">
-                          <Trophy className="mr-2" />
+                          <Trophy className="mr-2 w-4 h-4" />
                           Terminé (Vainqueur: {tournoi.winner})
                         </span>
                       ) : (
-                         <span className="text-sm font-medium text-green-400">
+                         <span className="text-sm font-medium text-green-400 animate-pulse">
                           En cours
                         </span>
                       )}

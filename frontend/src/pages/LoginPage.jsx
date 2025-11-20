@@ -1,5 +1,5 @@
 // Fichier: frontend/src/pages/LoginPage.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
@@ -12,22 +12,27 @@ const LoginPage = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, isAuthenticated } = useAuth(); // On récupère isAuthenticated
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // --- NOUVEAU : Redirection auto si déjà connecté ---
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/dashboard');
+    }
+  }, [isAuthenticated, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     
-    // login() renvoie maintenant un objet { success: boolean, message?: string }
     const result = await login(username, password);
     
     if (result.success) {
       toast({ title: 'Connexion réussie !' });
       navigate('/dashboard'); 
     } else {
-      // Affichage de l'erreur exacte (ex: "Compte en attente")
       toast({ title: 'Erreur', description: result.message || 'Identifiants incorrects.', variant: 'destructive' });
       setLoading(false);
     }
