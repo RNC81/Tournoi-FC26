@@ -37,7 +37,6 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
   const mainBracketMatches = matches.filter(m => m && !m.id.startsWith("match_third_place_"));
   const maxRound = mainBracketMatches.length > 0 ? Math.max(0, ...mainBracketMatches.map((m) => m ? m.round : -1)) : -1;
   
-  // Calcul du totalRounds basé sur le round 0
   const matchesInRound0 = mainBracketMatches.filter(m => m.round === 0).length;
   const totalRounds = matchesInRound0 > 0 ? Math.ceil(Math.log2(matchesInRound0 * 2)) : (maxRound + 1);
 
@@ -64,10 +63,12 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
     }
     const s1 = parseInt(score1);
     const s2 = parseInt(score2);
+
     if (isNaN(s1) || isNaN(s2) || s1 < 0 || s2 < 0) {
       toast({ title: 'Erreur', description: 'Scores invalides.', variant: 'destructive' });
       return;
     }
+
     if (isFinalOrThirdPlace && s1 === s2) {
       toast({ title: 'Erreur', description: 'Match nul interdit pour la Finale et la 3ème place.', variant: 'destructive' });
       return;
@@ -83,7 +84,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
       if (updatedTournament.winner) setChampion(updatedTournament.winner);
       if (updatedTournament.thirdPlace) setThirdPlaceWinner(updatedTournament.thirdPlace);
 
-      if (updatedTournament.winner) { // Si on a un vainqueur, on notifie la fin
+      if (updatedTournament.winner) { 
         onFinish(updatedTournament); 
       }
 
@@ -131,7 +132,6 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
       }
   };
 
-  // --- LOGIQUE D'AFFICHAGE ---
   const currentRoundMatches = mainBracketMatches.filter(m => m.round === maxRound);
   const isCurrentRoundFinished = currentRoundMatches.length > 0 && currentRoundMatches.every(m => m.played && m.winner);
   const showNextRoundButton = isAdmin && isCurrentRoundFinished && !champion;
@@ -204,29 +204,23 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
         )}
       </div>
 
-      {/* Champion */}
       {champion && (
-        <div className="bg-gradient-to-br from-yellow-900/40 to-gray-800 rounded-2xl p-8 shadow-2xl border-4 border-yellow-500/50 text-center mb-8">
+        <div className="bg-gradient-to-br from-yellow-900/40 to-gray-800 rounded-2xl p-8 shadow-2xl border-4 border-yellow-500/50 text-center mb-8 animate-in zoom-in duration-500">
           <Crown className="w-20 h-20 text-yellow-400 mx-auto mb-4 animate-pulse" />
           <h2 className="text-4xl font-bold text-yellow-400 mb-2">Champion du Tournoi !</h2>
           <p className="text-5xl font-black text-white">{champion}</p>
         </div>
       )}
 
-      {/* Podium : Affiché si champion existe, même sans 3e place */}
       {champion && (
-        <div className="mb-12 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-8 shadow-xl border border-gray-700">
+        <div className="mb-12 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-8 shadow-xl border border-gray-700 animate-in slide-in-from-bottom duration-700">
           <h3 className="text-3xl font-bold text-center text-gray-200 mb-8">Podium Final</h3>
           <div className="flex flex-col md:flex-row justify-around items-center gap-8">
             {(() => { 
-              // Trouver le dernier match joué
               const finalMatch = mainBracketMatches.find(m => m.round === maxRound && !m.id.startsWith("match_third_place_")); 
-              
-              let secondPlace = 'Non déterminé';
-              if (finalMatch && finalMatch.winner) {
-                  secondPlace = (finalMatch.winner === finalMatch.player1) ? finalMatch.player2 : finalMatch.player1;
-              }
-
+              const secondPlace = finalMatch && finalMatch.player1 && finalMatch.player2 
+                ? (finalMatch.player1 === champion ? finalMatch.player2 : finalMatch.player1)
+                : 'Non déterminé';
               return ( 
                 <>
                   <div className="text-center order-2 md:order-1">
@@ -251,7 +245,6 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, on
         </div> 
       )} 
 
-      {/* Tableau */}
       {matches.length > 0 && (
         <div className="overflow-x-auto pb-4">
             <div className="flex gap-8 min-w-max px-4">

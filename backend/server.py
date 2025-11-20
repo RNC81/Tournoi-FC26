@@ -249,7 +249,6 @@ async def login_for_access_token(user_in: UserLogin):
 def create_groups_logic(players: List[str], num_groups: Optional[int] = None, format: str = "1v1") -> List[Group]:
     entities = []
     
-    # --- MODIFICATION : On ne mélange PLUS ici pour le 2v2 si on veut respecter la preview ---
     # Si format 2v2, on suppose que la liste 'players' est DÉJÀ mélangée/ordonnée par le frontend
     if format == "2v2":
         # On prend les joueurs 2 par 2 dans l'ordre fourni
@@ -259,11 +258,8 @@ def create_groups_logic(players: List[str], num_groups: Optional[int] = None, fo
                 p2 = players[i+1]
                 entities.append(PlayerStats(name=f"{p1} + {p2}", real_players=[p1, p2]))
             else:
-                # Cas impair (ne devrait pas arriver avec la validation)
                  entities.append(PlayerStats(name=players[i], real_players=[players[i]]))
     else:
-        # En 1v1, on peut mélanger ici ou faire confiance.
-        # Pour cohérence, faisons confiance à l'ordre, mais mélangeons pour la répartition des poules.
         entities = [PlayerStats(name=p) for p in players]
 
     totalEntities = len(entities)
@@ -275,8 +271,6 @@ def create_groups_logic(players: List[str], num_groups: Optional[int] = None, fo
     else:
         logging.info(f"Calcul manuel: {totalEntities} entités -> {num_groups} poules")
     
-    # On mélange les ENTITÉS (équipes) pour les répartir dans les poules
-    # Cela garde les équipes formées, mais les place au hasard dans Poule A, B...
     shuffled_entities = random.sample(entities, totalEntities)
     
     base_size = totalEntities // num_groups
@@ -320,8 +314,7 @@ def update_group_standings_logic(group: Group) -> List[PlayerStats]:
     for i, player in enumerate(sorted_players): player.groupPosition = i + 1
     return sorted_players
 
-def determine_qualifiers_logic(groups: List[Group], total_original_players: int) -> List[str]:
-    # --- CORRECTION CRITIQUE ICI ---
+def determine_qualifiers_logic(groups: List[Group], total_players: int) -> List[str]:
     # On calcule le nombre total d'ENTITÉS (Équipes ou Joueurs) actuellement en jeu
     total_entities = sum(len(g.players) for g in groups)
     
@@ -332,36 +325,39 @@ def determine_qualifiers_logic(groups: List[Group], total_original_players: int)
     
     num_groups = len(groups)
     qualified = []
+    logging.info(f"Début Qualification: {total_players} joueurs, {num_groups} poules. Cible: {target} qualifiés.")
     
     if target % num_groups == 0:
-        per_group = target // num_groups
-        for g in groups:
-            sorted_p = update_group_standings_logic(g)
-            g.players = sorted_p
-            for i, p in enumerate(sorted_p):
-                if i < per_group: qualified.append(p.name)
+        qualifiers_per_group = target // num_groups
+        logging.info(f"Cas 'Propre' détecté. Règle: Top {qualifiers_per_group} de chaque poule.")
+        for group in groups:
+            sorted_players_in_group = update_group_standings_logic(group)
+            group.players = sorted_players_in_group
+            for i, player in enumerate(sorted_players_in_group):
+                if i < qualifiers_per_group:
+                    qualified.append(player.name)
     else:
-        base = math.floor(target / num_groups)
-        pool = []
-        for g in groups:
-            sorted_p = update_group_standings_logic(g)
-            g.players = sorted_p
-            for i, p in enumerate(sorted_p):
-                if i < base: qualified.append(p.name)
-                else: pool.append(p)
+        logging.info(f"Cas 'Complexe' détecté. Règle: Meilleurs suivants.")
+        base_qualifiers_per_group = math.floor(target / num_groups)
+        best_finishers_pool = []
+        logging.info(f"Mode de qualification: Top {base_qualifiers_per_group} + meilleurs suivants.")
+        for group in groups:
+            sorted_players_in_group = update_group_standings_logic(group)
+            group.players = sorted_players_in_group 
+            for i, player in enumerate(sorted_players_in_group):
+                if i < base_qualifiers_per_group:
+                    qualified.append(player.name)
+                else:
+                    best_finishers_pool.append(player) 
         needed = target - len(qualified)
-        if needed > 0 and pool:
-            pool.sort(key=lambda p: (p.points, p.goalDiff, p.goalsFor), reverse=True)
-            qualified.extend(p.name for p in pool[:needed])
-            
+        if needed > 0 and best_finishers_pool:
+            best_finishers_pool.sort(key=lambda p: (p.points, p.goalDiff, p.goalsFor), reverse=True)
+            qualified.extend(p.name for p in best_finishers_pool[:needed])
+    logging.info(f"Total qualifiés générés: {len(qualified)}")
     return qualified[:target]
 
 
 def generate_knockout_matches_logic(qualified_names: List[str], single_round: bool = False) -> List[KnockoutMatch]:
-    """
-    Génère les matchs.
-    Si single_round=True (mode 2v2), ne génère QUE le prochain tour.
-    """
     num = len(qualified_names)
     if num == 0: return []
     
@@ -445,9 +441,23 @@ async def complete_groups_and_draw_knockout(tournament_id: str):
     qualified_entities = determine_qualifiers_logic(tournament.groups, len(tournament.players))
     final_qualified_list = qualified_entities 
 
-    # --- LOGIQUE 2v2 (RESHUFFLE) ---
+    # --- LOGIQUE 2v2 (RESHUFFLE ANTI-DOUBLON) ---
     if tournament.format == "2v2":
-        logging.info("Format 2v2 détecté : Dissolution des équipes et nouveau tirage.")
+        logging.info("Format 2v2 détecté : Reshuffle avec vérification anti-doublon.")
+        
+        # 1. Collecter les équipes qui ont déjà existé dans les poules
+        previous_teams_sets = []
+        for g in tournament.groups:
+            for p in g.players:
+                if p.real_players:
+                    # On utilise un set pour que l'ordre (A,B) == (B,A)
+                    previous_teams_sets.append(set(p.real_players))
+                else:
+                    parts = p.name.split(' + ')
+                    if len(parts) == 2:
+                        previous_teams_sets.append(set(parts))
+
+        # 2. Récupérer tous les joueurs individuels
         individual_pool = []
         all_stats_map = {p.name: p for g in tournament.groups for p in g.players}
         
@@ -459,13 +469,48 @@ async def complete_groups_and_draw_knockout(tournament_id: str):
                 parts = team_name.split(' + ')
                 individual_pool.extend(parts)
         
-        random.shuffle(individual_pool)
+        # 3. Mélanger jusqu'à trouver une combinaison valide (max 100 essais)
+        attempts = 0
+        valid_shuffle = False
         new_teams = []
-        for i in range(0, len(individual_pool), 2):
-            if i+1 < len(individual_pool):
-                new_teams.append(f"{individual_pool[i]} + {individual_pool[i+1]}")
-            else:
-                new_teams.append(individual_pool[i])
+
+        while attempts < 100 and not valid_shuffle:
+            random.shuffle(individual_pool)
+            temp_teams = []
+            collision = False
+            
+            for i in range(0, len(individual_pool), 2):
+                if i+1 < len(individual_pool):
+                    p1 = individual_pool[i]
+                    p2 = individual_pool[i+1]
+                    current_pair = {p1, p2}
+                    
+                    # Vérification doublon
+                    if current_pair in previous_teams_sets:
+                        collision = True
+                        break # Ce mélange ne marche pas, on recommence
+                    
+                    temp_teams.append(f"{p1} + {p2}")
+                else:
+                    temp_teams.append(individual_pool[i])
+            
+            if not collision:
+                new_teams = temp_teams
+                valid_shuffle = True
+            
+            attempts += 1
+        
+        # Fallback si impossible après 100 essais (ex: trop peu de joueurs pour faire unique)
+        if not valid_shuffle:
+            logging.warning("Impossible de générer des équipes 100% uniques après 100 essais. Utilisation du dernier mélange.")
+            # On reconstruit les équipes du dernier mélange
+            new_teams = []
+            for i in range(0, len(individual_pool), 2):
+                if i+1 < len(individual_pool):
+                    new_teams.append(f"{individual_pool[i]} + {individual_pool[i+1]}")
+                else:
+                    new_teams.append(individual_pool[i])
+
         final_qualified_list = new_teams
 
     tournament.qualifiedPlayers = final_qualified_list
@@ -496,10 +541,6 @@ async def complete_groups_and_draw_knockout(tournament_id: str):
 # --- NOUVELLE ROUTE : Générer le prochain tour (2v2) ---
 @api_router.post("/tournament/{tournament_id}/generate_next_round", response_model=Tournament)
 async def generate_next_round(tournament_id: str):
-    """
-    Pour le mode 2v2 : Prend les vainqueurs, mélange et génère le tour suivant.
-    Gère aussi la petite finale si on est en demies.
-    """
     t_data = await tournaments_collection.find_one({"_id": tournament_id})
     if not t_data: raise HTTPException(status_code=404, detail="Tournoi non trouvé")
     tournament = Tournament(**t_data)
@@ -507,21 +548,18 @@ async def generate_next_round(tournament_id: str):
     if tournament.format != "2v2":
         raise HTTPException(status_code=400, detail="Action réservée au mode 2v2")
     
-    # Trouver le round actuel (le plus élevé)
     current_matches = tournament.knockoutMatches
     if not current_matches:
          raise HTTPException(status_code=400, detail="Aucun match en cours")
          
     max_round = max(m.round for m in current_matches if not m.id.startswith("match_third_place_"))
     
-    # Matchs du tour actuel
     current_round_matches = [m for m in current_matches if m.round == max_round and not m.id.startswith("match_third_place_")]
     if not all(m.played and m.winner for m in current_round_matches):
         raise HTTPException(status_code=400, detail="Le tour actuel n'est pas terminé")
         
     winning_teams = [m.winner for m in current_round_matches]
     losing_teams = []
-    # Pour récupérer les perdants, on regarde qui n'est pas le winner
     for m in current_round_matches:
         if m.winner == m.player1: losing_teams.append(m.player2)
         else: losing_teams.append(m.player1)
@@ -545,7 +583,6 @@ async def generate_next_round(tournament_id: str):
     next_round_index = max_round + 1
     new_matches = []
     
-    # Création de la finale (ou du tour suivant)
     for i in range(len(new_teams) // 2):
          new_matches.append(KnockoutMatch(
             id=f"match_{uuid.uuid4()}", 
@@ -556,8 +593,6 @@ async def generate_next_round(tournament_id: str):
         ))
 
     # --- GESTION PERDANTS (Petite Finale) ---
-    # Si on avait 2 matchs (donc 4 équipes) dans le round actuel, c'était les Demies.
-    # On doit créer la petite finale avec les perdants reshufflés.
     if len(current_round_matches) == 2:
         logging.info("Demi-finales 2v2 détectées : Création de la petite finale reshufflée.")
         loser_pool = []
@@ -566,7 +601,6 @@ async def generate_next_round(tournament_id: str):
             loser_pool.extend(parts)
         
         random.shuffle(loser_pool)
-        # On devrait avoir 4 joueurs -> 2 équipes
         loser_teams = []
         for i in range(0, len(loser_pool), 2):
              loser_teams.append(f"{loser_pool[i]} + {loser_pool[i+1]}")
@@ -574,15 +608,13 @@ async def generate_next_round(tournament_id: str):
         if len(loser_teams) == 2:
             new_matches.append(KnockoutMatch(
                 id=f"match_third_place_{uuid.uuid4()}", 
-                round=next_round_index, # On met la petite finale au même "niveau" que la finale
+                round=next_round_index, 
                 matchIndex=1, 
                 player1=loser_teams[0], 
                 player2=loser_teams[1]
             ))
 
-    # Ajouter au tableau existant
     tournament.knockoutMatches.extend(new_matches)
-    
     tournament.updatedAt = datetime.now(timezone.utc)
     
     update_data = {
@@ -724,11 +756,6 @@ async def update_match_score(tournament_id: str, match_id: str, scores: ScoreUpd
                     if match["id"].startswith("match_third_place_"):
                          tournament["thirdPlace"] = winner
                     elif is_last_round:
-                         # C'est la finale ? Il faut vérifier s'il reste qu'un match
-                         # En 2v2 reshuffle, on sait que c'est la finale si max_round correspond à 2 équipes
-                         # Simplification: Si c'est le dernier match du dernier round généré
-                         # On ne sait pas si c'est la finale absolue sans compter les joueurs restants.
-                         # Mais si on a un winner, on peut le marquer.
                          # Si tous les matchs du round sont finis et qu'il n'y a qu'un match, c'est la finale.
                          matches_in_this_round = [m for m in current_matches if m["round"] == max_round and not m["id"].startswith("match_third_place_")]
                          if len(matches_in_this_round) == 1:
