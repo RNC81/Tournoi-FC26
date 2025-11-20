@@ -20,7 +20,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, gr
   const [isRedrawing, setIsRedrawing] = useState(false);
   const [isGeneratingNext, setIsGeneratingNext] = useState(false);
   
-  const topRef = useRef(null);
+  const topRef = useRef(null); // Référence pour le scroll
   const { toast } = useToast();
 
   useEffect(() => {
@@ -29,11 +29,11 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, gr
 
   useEffect(() => {
     setChampion(winner);
-    // Scroll to podium when winner is declared
+    // Scroll automatique vers le podium si un vainqueur est déclaré
     if (winner && topRef.current) {
         setTimeout(() => {
              topRef.current.scrollIntoView({ behavior: 'smooth' });
-        }, 100);
+        }, 200);
     }
   }, [winner]);
 
@@ -87,11 +87,11 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, gr
     try {
       const updatedTournament = await updateScore(tournamentId, selectedMatch.id, s1, s2);
       
-      // Mise à jour locale immédiate pour fluidité
+      // Mise à jour locale immédiate pour fluidité (avant même que le parent ne refresh)
       if (updatedTournament.winner) setChampion(updatedTournament.winner);
       if (updatedTournament.thirdPlace) setThirdPlaceWinner(updatedTournament.thirdPlace);
 
-      // Mise à jour globale (le parent gérera le changement d'état "finished")
+      // Mise à jour globale
       onScoreUpdate(updatedTournament); 
 
       setIsDialogOpen(false);
@@ -192,7 +192,7 @@ const Step4Bracket = ({ tournamentId, knockoutMatches, onScoreUpdate, winner, gr
 
   return (
     <div className="max-w-full mx-auto space-y-8">
-      {/* Ancre pour le scroll automatique */}
+      {/* Ancre invisible en haut pour le scroll */}
       <div ref={topRef} className="scroll-mt-24"></div>
 
       <div className="text-center">

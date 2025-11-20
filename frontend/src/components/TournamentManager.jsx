@@ -20,8 +20,6 @@ import {
 } from './ui/alert-dialog'; 
 import { Button } from './ui/button'; 
 
-const ADMIN_STATUS_LS_KEY = 'isAdmin'; 
-
 const TournamentManager = ({ isAdmin, initialData }) => { 
   const [tournamentId, setTournamentId] = useState(initialData?._id || initialData?.id || null);
   const [currentStep, setCurrentStep] = useState("loading"); 
@@ -38,28 +36,42 @@ const TournamentManager = ({ isAdmin, initialData }) => {
   const [isDeleting, setIsDeleting] = useState(false);
   
   const prevStepRef = useRef(currentStep);
+  // Ref pour stocker la date de dernière mise à jour des données
+  // Cela permet d'ignorer les requêtes de polling qui arriveraient "en retard" avec de vieilles données
+  const lastUpdateRef = useRef(initialData?.updatedAt ? new Date(initialData.updatedAt).getTime() : 0);
+
   const { toast } = useToast();
 
   const updateFullTournamentState = useCallback((data) => {
     if (!data) {
-        console.warn("Attempted to update state with null data.");
+        console.warn("Tentative de mise à jour avec données nulles.");
         setCurrentStep('no_tournament');
         setIsLoading(false);
         return;
     }
+
+    // --- PROTECTION ANTI-RACE CONDITION ---
+    const incomingDate = data.updatedAt ? new Date(data.updatedAt).getTime() : 0;
+    // Si les données entrantes sont plus vieilles que ce qu'on a déjà, on ignore (Polling obsolète)
+    if (incomingDate < lastUpdateRef.current) {
+        // console.log("Données obsolètes ignorées.");
+        return;
+    }
+    lastUpdateRef.current = incomingDate;
+    // --------------------------------------
     
     setFormat(data.format || '1v1');
 
     const newStep = data.currentStep || "config";
     
-    // Détection des changements d'état pour les notifications
+    // Notifications de changement d'étape
     if (prevStepRef.current !== newStep && prevStepRef.current !== "loading") {
         if (prevStepRef.current === "groups" && (newStep === "qualified" || newStep === "knockout")) {
-            toast({ title: "Mise à jour !", description: "La phase de poules est terminée. Place à la suite !", duration: 5000 });
+            toast({ title: "Phase terminée", description: "La phase de poules est terminée. Place à la suite !", duration: 4000 });
         }
     }
-
-    // Détection spécifique de la victoire
+    
+    // Notification de victoire (seulement si nouveau vainqueur)
     if (data.winner && !winner) {
          toast({ title: "Tournoi terminé !", description: `Félicitations à ${data.winner} !`, duration: 5000 });
     }
@@ -123,9 +135,10 @@ const TournamentManager = ({ isAdmin, initialData }) => {
     }
   }, [initialData, tournamentId, updateFullTournamentState]);
 
-  // Polling : On arrête le polling si on est Admin (pas besoin) OU si le tournoi est fini
+  // Polling
   useEffect(() => {
-    if (isAdmin || !tournamentId || currentStep === 'finished') {
+    // On arrête le polling si on est sur la page de fin pour éviter tout conflit
+    if (isAdmin || !tournamentId || currentStep === 'finished' || winner) {
       return;
     }
 
@@ -136,12 +149,12 @@ const TournamentManager = ({ isAdmin, initialData }) => {
           updateFullTournamentState(data);
         }
       } catch (error) {
-        // Silent fail for polling
+        // Silent fail
       }
     }, 5000); 
 
     return () => clearInterval(intervalId);
-  }, [isAdmin, tournamentId, currentStep, updateFullTournamentState]);
+  }, [isAdmin, tournamentId, currentStep, winner, updateFullTournamentState]);
 
 
   const handleTournamentUpdate = (tournamentData) => { updateFullTournamentState(tournamentData); };
