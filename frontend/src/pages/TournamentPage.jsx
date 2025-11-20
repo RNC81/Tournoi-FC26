@@ -8,8 +8,8 @@ import { Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 
 const TournamentPage = () => {
-  const { id } = useParams(); // Récupère l'ID depuis l'URL (ex: /tournament/654...)
-  const { user } = useAuth(); // Récupère l'utilisateur connecté (si présent)
+  const { id } = useParams(); 
+  const { user } = useAuth(); 
   const navigate = useNavigate();
 
   const [tournamentData, setTournamentData] = useState(null);
@@ -60,20 +60,20 @@ const TournamentPage = () => {
     );
   }
 
-  // --- LOGIQUE DE DÉTECTION ADMIN ---
+  // --- LOGIQUE DE DÉTECTION ADMIN (GOD MODE) ---
   // On est admin SI :
-  // 1. On est connecté (user existe)
-  // 2. ET le tournoi a un propriétaire (owner_username)
-  // 3. ET le nom d'utilisateur correspond
-  const isOwner = user && tournamentData?.owner_username === user.username;
+  // 1. On est le propriétaire du tournoi
+  // 2. OU on est Super Admin (Droit de modération universel)
+  const isOwner = user && (
+      tournamentData?.owner_username === user.username || 
+      user.role === 'super_admin'
+  );
 
   return (
     <>
-        {/* On passe l'ID directement au manager pour qu'il puisse gérer ses mises à jour */}
-        {/* On force le mode Admin ou Spectateur via la prop isAdmin */}
         <TournamentManager 
             isAdmin={isOwner} 
-            initialData={tournamentData} // On passe les données déjà chargées pour éviter un double appel
+            initialData={tournamentData} 
         />
     </>
   );

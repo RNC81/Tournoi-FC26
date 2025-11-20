@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
 import { useNavigate, Link } from 'react-router-dom'; 
-import { getMyTournaments, updateProfile } from '../api'; 
+import { getMyTournaments, updateProfile, getPendingUsers } from '../api'; // Ajout de getPendingUsers
 import { Loader2, Plus, LogOut, ArrowRight, Trophy, ShieldAlert, UserCog } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { Badge } from '../components/ui/badge';
@@ -24,6 +24,7 @@ const DashboardPage = () => {
   
   const [tournaments, setTournaments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [pendingCount, setPendingCount] = useState(0); // Compteur de notifs
   
   // État pour le profil
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -33,18 +34,32 @@ const DashboardPage = () => {
 
   useEffect(() => {
     if (user) setNewUsername(user.username);
-    const loadTournaments = async () => {
+    
+    const loadData = async () => {
       try {
         setLoading(true);
-        const data = await getMyTournaments();
-        setTournaments(data);
+        
+        // Chargement des tournois
+        const tournamentsData = await getMyTournaments();
+        setTournaments(tournamentsData);
+
+        // Si Super Admin, on vérifie s'il y a des comptes en attente pour la notif
+        if (user?.role === 'super_admin') {
+            try {
+                const pendingUsers = await getPendingUsers();
+                setPendingCount(pendingUsers.length);
+            } catch (e) {
+                // Silent fail pour la notif, pas grave
+            }
+        }
+
       } catch (error) {
-        toast({ title: 'Erreur', description: 'Impossible de charger vos tournois.', variant: 'destructive' });
+        toast({ title: 'Erreur', description: 'Impossible de charger vos données.', variant: 'destructive' });
       } finally {
         setLoading(false);
       }
     };
-    loadTournaments();
+    loadData();
   }, [user, toast]);
 
   const handleLogout = () => {
@@ -67,7 +82,7 @@ const DashboardPage = () => {
 
           await updateProfile(payload);
           toast({ title: "Profil mis à jour", description: "Veuillez vous reconnecter." });
-          handleLogout(); // Déconnexion forcée pour sécurité
+          handleLogout(); 
       } catch (error) {
           const msg = error.response?.data?.detail || "Erreur lors de la mise à jour.";
           toast({ title: "Erreur", description: msg, variant: "destructive" });
@@ -95,8 +110,18 @@ const DashboardPage = () => {
             </Button>
 
             {user?.role === 'super_admin' && (
-                <Button variant="secondary" onClick={() => navigate('/admin')} className="bg-red-900/30 text-red-400 border border-red-900 hover:bg-red-900/50">
-                    <ShieldAlert className="mr-2 w-4 h-4" /> Administration
+                <Button 
+                    variant="secondary" 
+                    onClick={() => navigate('/admin')} 
+                    className="bg-red-900/30 text-red-400 border border-red-900 hover:bg-red-900/50 relative"
+                >
+                    <ShieldAlert className="mr-2 w-4 h-4" /> 
+                    Administration
+                    {pendingCount > 0 && (
+                        <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white animate-pulse">
+                            {pendingCount}
+                        </span>
+                    )}
                 </Button>
             )}
 
