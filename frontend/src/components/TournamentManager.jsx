@@ -1,5 +1,5 @@
 /* Fichier: frontend/src/components/TournamentManager.jsx */
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Step1Registration from './Step1Registration';
 import Step2GroupStage from './Step2GroupStage';
 import Step3Qualification from './Step3Qualification';
@@ -36,46 +36,32 @@ const TournamentManager = ({ isAdmin, initialData }) => {
   const [isLoading, setIsLoading] = useState(!initialData); 
   const [isDeleting, setIsDeleting] = useState(false);
   
-  const prevStepRef = useRef(currentStep);
   const { toast } = useToast();
 
+  // --- FONCTION DE MISE A JOUR NETTOYÉE ---
   const updateFullTournamentState = useCallback((data) => {
     if (!data) {
-        console.warn("Attempted to update state with null data.");
-        setCurrentStep('no_tournament');
-        setIsLoading(false);
+        console.warn("Data null, ignore.");
         return;
-    }
-    
-    // --- CORRECTION : Suppression de l'optimisation bloquante ---
-    // On laisse React gérer le diffing.
-    
-    const newStep = data.currentStep || "config";
-    
-    if (prevStepRef.current !== newStep && prevStepRef.current !== "loading") {
-        if (prevStepRef.current === "groups" && (newStep === "qualified" || newStep === "knockout")) {
-            toast({ title: "Mise à jour !", description: "La phase de poules est terminée. Place à la suite !", duration: 5000 });
-        }
-        if (data.winner && !winner) {
-             toast({ title: "Tournoi terminé !", description: `Félicitations à ${data.winner} !`, duration: 5000 });
-        }
-    }
-    prevStepRef.current = newStep; 
-
-    if (newStep !== currentStep || data.winner !== winner) {
-       // console.log("Updating full state from API data:", data); // Moins de logs
     }
 
     const tId = data._id || data.id;
+    const newStep = data.currentStep || "config";
+
+    // Mise à jour des états
     setTournamentId(tId); 
     setCurrentStep(newStep);
     setPlayers(data.players || []);
     setGroups(data.groups || []);
+    setKnockoutMatches(data.knockoutMatches || []);
+    setWinner(data.winner || null);
+    setThirdPlace(data.thirdPlace || null); 
 
+    // Gestion des qualifiés (pour Step3)
     if (data.qualifiedPlayers && data.players) {
         const qualifiedObjects = [];
         const elimObjects = [];
-        const allPlayerStats = data.groups.flatMap(g => g.players);
+        const allPlayerStats = data.groups ? data.groups.flatMap(g => g.players) : [];
 
         data.qualifiedPlayers.forEach(name => {
              const stats = allPlayerStats.find(p => p.name === name);
@@ -94,14 +80,11 @@ const TournamentManager = ({ isAdmin, initialData }) => {
         setEliminatedPlayers([]);
     }
 
-    setKnockoutMatches(data.knockoutMatches || []);
-    setWinner(data.winner || null);
-    setThirdPlace(data.thirdPlace || null); 
-    
     setIsLoading(false); 
-  }, [currentStep, winner, toast]); 
+  }, []); // Dépendances vides pour stabilité
 
 
+  // 1. CHARGEMENT INITIAL
   useEffect(() => {
     if (initialData) {
         updateFullTournamentState(initialData);
@@ -112,7 +95,6 @@ const TournamentManager = ({ isAdmin, initialData }) => {
                 if (data) updateFullTournamentState(data);
                 else setCurrentStep("no_tournament");
             } catch (e) {
-                console.error(e);
                 setCurrentStep("no_tournament");
             }
         };
@@ -123,61 +105,53 @@ const TournamentManager = ({ isAdmin, initialData }) => {
     }
   }, [initialData, tournamentId, updateFullTournamentState]);
 
+  // 2. POLLING (Rafraîchissement)
   useEffect(() => {
-    if (isAdmin || !tournamentId) {
-      return;
-    }
+    if (isAdmin || !tournamentId) return;
 
     const intervalId = setInterval(async () => {
       try {
         const data = await getTournament(tournamentId);
-        if (data) {
-          updateFullTournamentState(data);
-        }
-      } catch (error) {
-      }
+        if (data) updateFullTournamentState(data);
+      } catch (error) { }
     }, 5000); 
 
     return () => clearInterval(intervalId);
   }, [isAdmin, tournamentId, updateFullTournamentState]);
 
 
-  const handleTournamentCreated = (tournamentData) => { updateFullTournamentState(tournamentData); };
-  const handleGroupsDrawn = (tournamentData) => { updateFullTournamentState(tournamentData); };
-  const handleScoreUpdated = (tournamentData) => { updateFullTournamentState(tournamentData); };
-  const handleGroupStageCompleted = (tournamentData) => { updateFullTournamentState(tournamentData); };
-  const handleKnockoutUpdated = (tournamentData) => { updateFullTournamentState(tournamentData); };
-  const handleTournamentFinished = (tournamentData) => { updateFullTournamentState(tournamentData); };
+  // Handlers
+  const handleTournamentCreated = (d) => updateFullTournamentState(d);
+  const handleGroupsDrawn = (d) => updateFullTournamentState(d);
+  const handleScoreUpdated = (d) => updateFullTournamentState(d);
+  const handleGroupStageCompleted = (d) => updateFullTournamentState(d);
+  const handleKnockoutUpdated = (d) => updateFullTournamentState(d);
+  const handleTournamentFinished = (d) => updateFullTournamentState(d);
 
   const handleDeleteTournament = async () => {
         if (!isAdmin || !tournamentId) return; 
         setIsDeleting(true);
         try {
             await deleteTournament(tournamentId);
-            toast({ title: "Tournoi supprimé.", description: "Redirection vers le tableau de bord..." });
+            toast({ title: "Tournoi supprimé.", description: "Retour au tableau de bord." });
             window.location.href = '/dashboard';
         } catch (error) {
-            toast({ title: "Erreur", description: "Impossible de supprimer le tournoi.", variant: "destructive" });
+            toast({ title: "Erreur", description: "Impossible de supprimer.", variant: "destructive" });
             setIsDeleting(false);
         }
   };
   
-  const handleResetTournament = () => { /* Legacy placeholder */ };
-
+  const handleResetTournament = () => {}; 
   const handleAdminLogout = () => {
       localStorage.removeItem(ADMIN_STATUS_LS_KEY);
       localStorage.removeItem('authToken');
       window.location.href = '/'; 
   };
 
-
   if (isLoading || isDeleting) {
       return (
           <div className="flex justify-center items-center min-h-screen">
               <Loader2 className="h-16 w-16 animate-spin text-cyan-400" />
-              <p className="ml-4 text-xl text-gray-300">
-                  {isDeleting ? "Suppression en cours..." : "Chargement..."}
-              </p>
           </div>
       );
   }
@@ -187,7 +161,6 @@ const TournamentManager = ({ isAdmin, initialData }) => {
           <div className="flex flex-col justify-center items-center min-h-screen text-center px-4">
               <ShieldOff className="h-24 w-24 text-gray-600 mb-6" />
               <h1 className="text-3xl font-bold text-gray-300 mb-2">Tournoi introuvable</h1>
-              <p className="text-xl text-gray-400">Les données ne sont pas disponibles ou ont été supprimées.</p>
               <Button onClick={() => window.location.href='/'} className="mt-6" variant="outline">Retour Accueil</Button>
           </div>
        );
@@ -195,17 +168,12 @@ const TournamentManager = ({ isAdmin, initialData }) => {
 
   const renderStep = () => {
     switch (currentStep) {
-      case 'config':
-        return <Step1Registration onComplete={handleTournamentCreated} isAdmin={isAdmin} />;
-      case 'groups':
-        return <Step2GroupStage tournamentId={tournamentId} players={players} groups={groups} onGroupsDrawn={handleGroupsDrawn} onScoreUpdate={handleScoreUpdated} onCompleteGroups={handleGroupStageCompleted} isAdmin={isAdmin} />;
-      case 'qualified': 
-        return <Step3Qualification tournamentId={tournamentId} groups={groups} qualifiedPlayers={qualifiedPlayers} eliminatedPlayers={eliminatedPlayers} onKnockoutDrawComplete={handleKnockoutUpdated} isAdmin={isAdmin} />;
+      case 'config': return <Step1Registration onComplete={handleTournamentCreated} isAdmin={isAdmin} />;
+      case 'groups': return <Step2GroupStage tournamentId={tournamentId} players={players} groups={groups} onGroupsDrawn={handleGroupsDrawn} onScoreUpdate={handleScoreUpdated} onCompleteGroups={handleGroupStageCompleted} isAdmin={isAdmin} />;
+      case 'qualified': return <Step3Qualification tournamentId={tournamentId} groups={groups} qualifiedPlayers={qualifiedPlayers} eliminatedPlayers={eliminatedPlayers} onKnockoutDrawComplete={handleKnockoutUpdated} isAdmin={isAdmin} />;
       case 'knockout': 
-      case 'finished': 
-        return <Step4Bracket tournamentId={tournamentId} knockoutMatches={knockoutMatches} onScoreUpdate={handleKnockoutUpdated} winner={winner} onFinish={handleTournamentFinished} groups={groups} thirdPlace={thirdPlace} isAdmin={isAdmin} />;
-      default:
-        return isAdmin ? <Step1Registration onComplete={handleTournamentCreated} isAdmin={isAdmin} /> : null;
+      case 'finished': return <Step4Bracket tournamentId={tournamentId} knockoutMatches={knockoutMatches} onScoreUpdate={handleKnockoutUpdated} winner={winner} onFinish={handleTournamentFinished} groups={groups} thirdPlace={thirdPlace} isAdmin={isAdmin} />;
+      default: return isAdmin ? <Step1Registration onComplete={handleTournamentCreated} isAdmin={isAdmin} /> : null;
     }
   };
 
@@ -232,14 +200,12 @@ const TournamentManager = ({ isAdmin, initialData }) => {
                          </AlertDialogTrigger>
                          <AlertDialogContent className="bg-gray-900 border-gray-700 text-gray-100">
                            <AlertDialogHeader>
-                             <AlertDialogTitle className="text-xl text-white">Supprimer le tournoi ?</AlertDialogTitle>
-                             <AlertDialogDescription className="text-gray-400">
-                               Cette action est <strong>définitive</strong>. Toutes les données de ce tournoi seront perdues.
-                             </AlertDialogDescription>
+                             <AlertDialogTitle>Supprimer le tournoi ?</AlertDialogTitle>
+                             <AlertDialogDescription>Action définitive.</AlertDialogDescription>
                            </AlertDialogHeader>
                            <AlertDialogFooter>
-                             <AlertDialogCancel className="text-gray-300 border-gray-600 hover:bg-gray-700">Annuler</AlertDialogCancel>
-                             <AlertDialogAction onClick={handleDeleteTournament} className="bg-red-600 hover:bg-red-700 text-white">Confirmer la suppression</AlertDialogAction>
+                             <AlertDialogCancel>Annuler</AlertDialogCancel>
+                             <AlertDialogAction onClick={handleDeleteTournament} className="bg-red-600 text-white">Confirmer</AlertDialogAction>
                            </AlertDialogFooter>
                          </AlertDialogContent>
                        </AlertDialog>
@@ -247,13 +213,6 @@ const TournamentManager = ({ isAdmin, initialData }) => {
                      <Button variant="outline" onClick={() => window.location.href = '/dashboard'} className="px-6 py-2 rounded-lg transition-all duration-300 font-medium w-full sm:w-auto border-gray-600 text-gray-300 hover:bg-gray-800">
                         <LogOut className="w-4 h-4 mr-2" /> Dashboard
                      </Button>
-                </div>
-             )}
-             
-             {!isAdmin && (
-                <div className="flex items-center gap-2 bg-gray-800 text-cyan-400 px-4 py-2 rounded-lg border border-gray-700 sm:ml-auto">
-                    <Users className="w-5 h-5" />
-                    <span className="font-medium">Mode Spectateur</span>
                 </div>
              )}
         </div>
@@ -264,27 +223,21 @@ const TournamentManager = ({ isAdmin, initialData }) => {
              { num: 2, name: 'Poules', stepKey: 'groups' },
              { num: 3, name: 'Qualif.', stepKey: 'qualified' }, 
              { num: 4, name: 'Finales', stepKey: 'knockout' } 
-           ].map((stepInfo, index, arr) => {
+           ].map((stepInfo) => {
                const stepOrder = ['config', 'groups', 'qualified', 'knockout', 'finished'];
                const currentStepIndex = currentStep === 'no_tournament' ? -1 : stepOrder.indexOf(currentStep);
                const thisStepLogicalIndex = stepOrder.findIndex(s => s === stepInfo.stepKey);
                const isActive = (currentStep === stepInfo.stepKey) || (stepInfo.stepKey === 'knockout' && currentStep === 'finished');
-               const isCompleted = currentStepIndex > thisStepLogicalIndex && thisStepLogicalIndex !== -1;
-               const pulseClass = isActive ? 'pulse-step' : ''; 
-               const nextStepLogicalIndex = index + 1 < arr.length ? stepOrder.findIndex(s => s === arr[index + 1].stepKey) : -1;
-               const lineCompleted = currentStepIndex >= nextStepLogicalIndex && nextStepLogicalIndex !== -1;
-
+               const isCompleted = currentStepIndex > thisStepLogicalIndex;
                return (
                   <div key={stepInfo.num} className="flex flex-col sm:flex-row items-center">
                       <div className="relative flex flex-col items-center">
-                          <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg transition-all duration-300 ${pulseClass} ${isActive ? 'bg-gradient-to-r from-cyan-400 to-blue-500 text-white shadow-lg shadow-cyan-500/50 scale-110' : isCompleted ? 'bg-green-600 text-white' : 'bg-gray-700 text-gray-400'}`}>
+                          <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg transition-all duration-300 ${isActive ? 'bg-gradient-to-r from-cyan-400 to-blue-500 text-white scale-110' : isCompleted ? 'bg-green-600 text-white' : 'bg-gray-700 text-gray-400'}`}>
                               {isCompleted ? <Check className="w-6 h-6" /> : stepInfo.num}
                           </div>
                           <span className="absolute top-full mt-2 text-xs text-gray-400 whitespace-nowrap">{stepInfo.name}</span>
                       </div>
-                      {stepInfo.num < 4 && (
-                          <div className={`w-1 h-12 sm:w-16 sm:h-1 my-2 sm:my-0 sm:mx-2 sm:mt-[-2.5rem] transition-colors duration-500 ${lineCompleted ? 'bg-gradient-to-r from-green-600 to-green-500' : 'bg-gray-700'}`} />
-                      )}
+                      {stepInfo.num < 4 && <div className={`w-1 h-12 sm:w-16 sm:h-1 my-2 sm:my-0 sm:mx-2 sm:mt-[-2.5rem] bg-gray-700`} />}
                   </div>
               )
            })}
