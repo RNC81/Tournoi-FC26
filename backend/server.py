@@ -29,7 +29,7 @@ if not SECRET_KEY:
     logging.warning("SECRET_KEY non définie, utilisation d'une clé par défaut")
     SECRET_KEY = "votre_mot_de_passe_secret_12345_par_defaut"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30 # Session Timeout : 30 minutes
+ACCESS_TOKEN_EXPIRE_MINUTES = 30 
 
 # --- Configuration Passlib ---
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -154,6 +154,10 @@ class UserLogin(BaseModel):
     username: str
     password: str
 
+class UserUpdate(BaseModel):
+    username: Optional[str] = None
+    password: Optional[str] = None
+
 class UserInDB(UserBase):
     id: str = Field(alias="_id")
     hashed_password: str
@@ -192,10 +196,8 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 async def get_user_from_db(username: str):
     user = await users_collection.find_one({"username": username})
     if user:
-        # Migration "On-the-fly" pour les vieux objets sans status/role
-        if "status" not in user: user["status"] = "active" # On assume actif pour les vieux comptes
+        if "status" not in user: user["status"] = "active"
         if "role" not in user: user["role"] = "admin"
-        
         user["_id"] = str(user["_id"])
         return UserInDB(**user)
     return None
@@ -243,7 +245,6 @@ async def register_user(user_in: UserCreate):
     if len(user_in.password) < 4:
          raise HTTPException(status_code=400, detail="Le mot de passe doit faire au moins 4 caractères")
     
-    # Si 0 user total => Super Admin / Active. Sinon Admin / Pending.
     user_count = await users_collection.count_documents({})
     if user_count == 0:
         role = "super_admin"
@@ -292,6 +293,32 @@ async def login_for_access_token(user_in: UserLogin):
         logging.error(f"ERREUR JWT: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Erreur interne du serveur")
 
+@auth_router.put("/profile", response_model=UserBase)
+async def update_profile(updates: UserUpdate, current_user: UserInDB = Depends(get_current_user)):
+    update_data = {}
+    
+    if updates.username:
+        clean_username = updates.username.replace("<", "").replace(">", "").strip()
+        if clean_username != current_user.username:
+             existing = await users_collection.find_one({"username": clean_username})
+             if existing:
+                 raise HTTPException(status_code=400, detail="Ce nom d'utilisateur est déjà pris")
+             update_data["username"] = clean_username
+    
+    if updates.password:
+        if len(updates.password) < 4:
+             raise HTTPException(status_code=400, detail="Le mot de passe doit faire au moins 4 caractères")
+        update_data["hashed_password"] = get_password_hash(updates.password)
+    
+    if not update_data:
+         raise HTTPException(status_code=400, detail="Aucune donnée à mettre à jour")
+         
+    await users_collection.update_one({"_id": ObjectId(current_user.id)}, {"$set": update_data})
+    
+    updated_user_doc = await users_collection.find_one({"_id": ObjectId(current_user.id)})
+    updated_user_doc["_id"] = str(updated_user_doc["_id"])
+    return UserBase(**updated_user_doc)
+
 # --- Routes SUPER ADMIN ---
 
 @api_router.get("/admin/users/pending", response_model=List[UserBase])
@@ -300,11 +327,30 @@ async def get_pending_users(current_user: UserInDB = Depends(get_current_super_a
     for u in users: u["_id"] = str(u["_id"])
     return users
 
+@api_router.get("/admin/users", response_model=List[UserBase])
+async def get_all_users(current_user: UserInDB = Depends(get_current_super_admin)):
+    # On exclut le mot de passe du retour bien sûr (géré par UserBase qui n'a pas le champ)
+    users = await users_collection.find({}).sort("createdAt", -1).to_list(500)
+    for u in users: u["_id"] = str(u["_id"])
+    return users
+
+@api_router.delete("/admin/users/{username}", status_code=204)
+async def delete_user_admin(username: str, current_user: UserInDB = Depends(get_current_super_admin)):
+    if username == current_user.username:
+        raise HTTPException(status_code=400, detail="Vous ne pouvez pas vous supprimer vous-même.")
+        
+    user_to_delete = await users_collection.find_one({"username": username})
+    if not user_to_delete:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+        
+    await users_collection.delete_one({"username": username})
+    logging.info(f"Utilisateur {username} supprimé par Super Admin {current_user.username}")
+    return
+
 @api_router.post("/admin/users/{username}/approve", response_model=UserBase)
 async def approve_user(username: str, current_user: UserInDB = Depends(get_current_super_admin)):
     user = await users_collection.find_one({"username": username})
     if not user: raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
-    
     await users_collection.update_one({"username": username}, {"$set": {"status": "active"}})
     updated_user = await users_collection.find_one({"username": username})
     updated_user["_id"] = str(updated_user["_id"])
@@ -314,7 +360,6 @@ async def approve_user(username: str, current_user: UserInDB = Depends(get_curre
 async def reject_user(username: str, current_user: UserInDB = Depends(get_current_super_admin)):
     user = await users_collection.find_one({"username": username})
     if not user: raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
-    
     await users_collection.update_one({"username": username}, {"$set": {"status": "rejected"}})
     updated_user = await users_collection.find_one({"username": username})
     updated_user["_id"] = str(updated_user["_id"])
@@ -322,6 +367,8 @@ async def reject_user(username: str, current_user: UserInDB = Depends(get_curren
 
 
 # --- Fonctions Utilitaires (Tournoi) ---
+# ... (Fonctions create_groups_logic, update_group_standings_logic, determine_qualifiers_logic, generate_knockout_matches_logic inchangées) ...
+
 def create_groups_logic(players: List[str], num_groups: Optional[int] = None, format: str = "1v1") -> List[Group]:
     entities = []
     if format == "2v2":
@@ -333,18 +380,15 @@ def create_groups_logic(players: List[str], num_groups: Optional[int] = None, fo
                  entities.append(PlayerStats(name=players[i], real_players=[players[i]]))
     else:
         entities = [PlayerStats(name=p) for p in players]
-
     totalEntities = len(entities)
     if num_groups is None or num_groups <= 1:
         num_groups = math.ceil(totalEntities / 4)
         if totalEntities > 8 and totalEntities % 4 in [1, 2]: num_groups = math.floor(totalEntities / 4) 
-    
     shuffled_entities = random.sample(entities, totalEntities)
     base_size = totalEntities // num_groups
     remainder = totalEntities % num_groups
     groupSizes = []
     for i in range(num_groups): groupSizes.append(base_size + 1 if i < remainder else base_size)
-        
     groups = []
     entityIndex = 0
     for i, size in enumerate(groupSizes):
@@ -457,15 +501,13 @@ async def complete_groups_and_draw_knockout(tournament_id: str):
     
     qualified_entities = determine_qualifiers_logic(tournament.groups, len(tournament.players))
     final_qualified_list = qualified_entities 
-
     if tournament.format == "2v2":
-        # Logique 2v2 reshuffle...
         previous_teams_sets = []
         for g in tournament.groups:
             for p in g.players:
                 if p.real_players: previous_teams_sets.append(set(p.real_players))
                 else:
-                    parts = p.name.split(' + ')
+                    parts = p.name.split(' + '); 
                     if len(parts) == 2: previous_teams_sets.append(set(parts))
         individual_pool = []
         all_stats_map = {p.name: p for g in tournament.groups for p in g.players}
@@ -491,7 +533,6 @@ async def complete_groups_and_draw_knockout(tournament_id: str):
                 if i+1 < len(individual_pool): new_teams.append(f"{individual_pool[i]} + {individual_pool[i+1]}")
                 else: new_teams.append(individual_pool[i])
         final_qualified_list = new_teams
-
     tournament.qualifiedPlayers = final_qualified_list
     tournament.currentStep = "qualified"
     is_2v2 = (tournament.format == "2v2")
@@ -521,7 +562,6 @@ async def generate_next_round(tournament_id: str):
         if m.winner == m.player1: losing_teams.append(m.player2)
         else: losing_teams.append(m.player1)
     if len(winning_teams) < 2: raise HTTPException(status_code=400, detail="Le tournoi est terminé (Finale jouée)")
-    
     individual_pool = []
     for team_name in winning_teams: parts = team_name.split(' + '); individual_pool.extend(parts)
     random.shuffle(individual_pool)
@@ -580,7 +620,6 @@ async def update_match_score(tournament_id: str, match_id: str, scores: ScoreUpd
     if not t: raise HTTPException(status_code=404, detail="Tournoi non trouvé")
     tournament = t
     match_found = False
-    
     if tournament.get("groups"):
         for group in tournament["groups"]:
             for match in group.get("matches", []):
@@ -686,17 +725,12 @@ async def startup():
     try: 
         await client.admin.command('ping')
         logging.info(f"Connected to DB: {db_name}")
-        
-        # --- MIGRATION V4 : Bootstrap Super Admin & Fix Old Users ---
         users_count = await users_collection.count_documents({})
         if users_count > 0:
-            # 1. On répare les vieux users (pas de status => active)
             await users_collection.update_many(
                 {"status": {"$exists": False}}, 
                 {"$set": {"status": "active", "role": "admin"}}
             )
-            
-            # 2. On s'assure qu'il y a un Super Admin. Sinon, le premier user créé le devient.
             super_admin = await users_collection.find_one({"role": "super_admin"})
             if not super_admin:
                 first_user = await users_collection.find_one({}, sort=[("createdAt", 1)])
@@ -706,7 +740,6 @@ async def startup():
                         {"$set": {"role": "super_admin", "status": "active"}}
                     )
                     logging.info(f"MIGRATION: {first_user['username']} promu Super Admin par défaut.")
-
     except Exception as e: 
         logging.error(f"DB Connection/Migration Error: {e}")
 

@@ -45,6 +45,16 @@ export const getPendingUsers = async () => {
     }
 };
 
+export const getAllUsers = async () => {
+    try {
+        const response = await apiClient.get('/api/admin/users');
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching all users:", error);
+        throw error;
+    }
+};
+
 export const approveUser = async (username) => {
     try {
         const response = await apiClient.post(`/api/admin/users/${username}/approve`);
@@ -65,7 +75,27 @@ export const rejectUser = async (username) => {
     }
 };
 
-// --- MODIFICATION : Ajout de 'format' ---
+export const deleteUser = async (username) => {
+    try {
+        await apiClient.delete(`/api/admin/users/${username}`);
+        return true;
+    } catch (error) {
+         console.error("Error deleting user:", error);
+         throw error;
+    }
+};
+
+// --- USER PROFILE API ---
+export const updateProfile = async (data) => {
+    try {
+        const response = await apiClient.put('/api/auth/profile', data);
+        return response.data;
+    } catch (error) {
+        console.error("Error updating profile:", error);
+        throw error;
+    }
+};
+
 export const createTournament = async (playerNames, numGroups, tournamentName, format) => {
   try {
     const response = await apiClient.post('/api/tournament', { 
