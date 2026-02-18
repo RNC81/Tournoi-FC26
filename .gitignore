@@ -4,6 +4,18 @@
 .idea/
 .vscode/
 
+# AI / Antigravity agent files — ne pas exposer publiquement
+.agent/
+
+# Documentation interne — contient des détails d'architecture exploitables
+ARCHITECTURE_LOG.md
+PROJECT_MANIFEST.md
+
+# Fichiers de tests internes
+test_report*.md
+test_2v2*.py
+tests/
+
 # Dependencies
 node_modules/
 /node_modules
