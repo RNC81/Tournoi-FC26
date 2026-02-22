@@ -36,14 +36,6 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
     setGeneratedGroups(groups || []);
   }, [groups]);
 
-  // Ouvrir automatiquement le dialog de choix de format quand tous les matchs sont joués
-  useEffect(() => {
-    if (allMatchesPlayed && isAdmin && !confirmedQualifiedCount && !isConfirmDialogOpen) {
-      setChosenQualified(null);
-      setDoRemix(false);
-      setIsConfirmDialogOpen(true);
-    }
-  }, [allMatchesPlayed, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleMatchClick = (groupIndex, match) => {
     if (!isAdmin) {
@@ -119,6 +111,16 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
     generatedGroups.every((group) =>
       group.matches.every((match) => match.played)
     ), [generatedGroups]);
+
+  // Ouvrir automatiquement le dialog quand tous les matchs sont joués
+  // (doit être APRÈS la déclaration de allMatchesPlayed pour éviter le temporal dead zone)
+  useEffect(() => {
+    if (allMatchesPlayed && isAdmin && !confirmedQualifiedCount && !isConfirmDialogOpen) {
+      setChosenQualified(null);
+      setDoRemix(false);
+      setIsConfirmDialogOpen(true);
+    }
+  }, [allMatchesPlayed, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const entityCount = format === '2v2' ? players.length / 2 : players.length;
   const autoQualifiedCount = getTargetQualifiedCount(entityCount);
