@@ -167,9 +167,11 @@ export const updateScore = async (tournamentId, matchId, score1, score2) => {
   }
 };
 
-export const completeGroupStage = async (tournamentId) => {
+export const completeGroupStage = async (tournamentId, numQualified = null, remix = false) => {
   try {
-    const response = await apiClient.post(`/api/tournament/${tournamentId}/complete_groups`);
+    let url = `/api/tournament/${tournamentId}/complete_groups?remix=${remix}`;
+    if (numQualified) url += `&num_qualified=${numQualified}`;
+    const response = await apiClient.post(url);
     return response.data;
   } catch (error) {
     console.error("Error completing group stage:", error.response?.data || error.message);

@@ -2,9 +2,10 @@
   {
     "num_players": 4,
     "num_teams": 2,
+    "fmt": "2v2",
     "success": false,
     "errors": [
-      "Qualification: Nombre de qualifiés 2 != 4 attendu"
+      "Qualification auto: Qualifiés: 2 != attendu 4"
     ],
     "warnings": [],
     "details": {
@@ -18,9 +19,10 @@
   {
     "num_players": 6,
     "num_teams": 3,
+    "fmt": "2v2",
     "success": false,
     "errors": [
-      "Qualification: Nombre de qualifiés 3 != 4 attendu"
+      "Qualification auto: Qualifiés: 3 != attendu 4"
     ],
     "warnings": [],
     "details": {
@@ -34,11 +36,620 @@
   {
     "num_players": 8,
     "num_teams": 4,
+    "fmt": "2v2",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 1,
+      "group_sizes": [
+        4
+      ],
+      "num_qualified": 4,
+      "num_knockout_matches": 2,
+      "remix_info": "Shuffle valide en 1 tentative(s)"
+    }
+  },
+  {
+    "num_players": 10,
+    "num_teams": 5,
+    "fmt": "2v2",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 2,
+      "group_sizes": [
+        3,
+        2
+      ],
+      "num_qualified": 4,
+      "num_knockout_matches": 2,
+      "remix_info": "Shuffle valide en 2 tentative(s)"
+    }
+  },
+  {
+    "num_players": 12,
+    "num_teams": 6,
+    "fmt": "2v2",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 2,
+      "group_sizes": [
+        3,
+        3
+      ],
+      "num_qualified": 4,
+      "num_knockout_matches": 2,
+      "remix_info": "Shuffle valide en 3 tentative(s)"
+    }
+  },
+  {
+    "num_players": 14,
+    "num_teams": 7,
+    "fmt": "2v2",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 2,
+      "group_sizes": [
+        4,
+        3
+      ],
+      "num_qualified": 4,
+      "num_knockout_matches": 2,
+      "remix_info": "Shuffle valide en 1 tentative(s)"
+    }
+  },
+  {
+    "num_players": 16,
+    "num_teams": 8,
+    "fmt": "2v2",
     "success": true,
     "errors": [],
     "warnings": [
-      "Remix équipes: Paires identiques entre poules et qualifiés: {frozenset({'Player4', 'Player3'}), frozenset({'Player2', 'Player1'}), frozenset({'Player8', 'Player7'}), frozenset({'Player6', 'Player5'})}"
+      "Override 8: Override 8 > qualifiés disponibles 4"
     ],
+    "details": {
+      "num_groups": 2,
+      "group_sizes": [
+        4,
+        4
+      ],
+      "num_qualified": 4,
+      "num_knockout_matches": 2,
+      "remix_info": "Shuffle valide en 1 tentative(s)"
+    }
+  },
+  {
+    "num_players": 18,
+    "num_teams": 9,
+    "fmt": "2v2",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 2,
+      "group_sizes": [
+        5,
+        4
+      ],
+      "num_qualified": 8,
+      "num_knockout_matches": 4,
+      "remix_info": "Shuffle valide en 1 tentative(s)"
+    }
+  },
+  {
+    "num_players": 20,
+    "num_teams": 10,
+    "fmt": "2v2",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 2,
+      "group_sizes": [
+        5,
+        5
+      ],
+      "num_qualified": 8,
+      "num_knockout_matches": 4,
+      "remix_info": "Shuffle valide en 4 tentative(s)"
+    }
+  },
+  {
+    "num_players": 22,
+    "num_teams": 11,
+    "fmt": "2v2",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 3,
+      "group_sizes": [
+        4,
+        4,
+        3
+      ],
+      "num_qualified": 8,
+      "num_knockout_matches": 4,
+      "remix_info": "Shuffle valide en 2 tentative(s)"
+    }
+  },
+  {
+    "num_players": 24,
+    "num_teams": 12,
+    "fmt": "2v2",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 3,
+      "group_sizes": [
+        4,
+        4,
+        4
+      ],
+      "num_qualified": 8,
+      "num_knockout_matches": 4,
+      "remix_info": "Shuffle valide en 1 tentative(s)"
+    }
+  },
+  {
+    "num_players": 26,
+    "num_teams": 13,
+    "fmt": "2v2",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 3,
+      "group_sizes": [
+        5,
+        4,
+        4
+      ],
+      "num_qualified": 8,
+      "num_knockout_matches": 4,
+      "remix_info": "Shuffle valide en 2 tentative(s)"
+    }
+  },
+  {
+    "num_players": 28,
+    "num_teams": 14,
+    "fmt": "2v2",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 3,
+      "group_sizes": [
+        5,
+        5,
+        4
+      ],
+      "num_qualified": 8,
+      "num_knockout_matches": 4,
+      "remix_info": "Shuffle valide en 1 tentative(s)"
+    }
+  },
+  {
+    "num_players": 30,
+    "num_teams": 15,
+    "fmt": "2v2",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 4,
+      "group_sizes": [
+        4,
+        4,
+        4,
+        3
+      ],
+      "num_qualified": 8,
+      "num_knockout_matches": 4,
+      "remix_info": "Shuffle valide en 1 tentative(s)"
+    }
+  },
+  {
+    "num_players": 32,
+    "num_teams": 16,
+    "fmt": "2v2",
+    "success": true,
+    "errors": [],
+    "warnings": [
+      "Override 16: Override 16 > qualifiés disponibles 8"
+    ],
+    "details": {
+      "num_groups": 4,
+      "group_sizes": [
+        4,
+        4,
+        4,
+        4
+      ],
+      "num_qualified": 8,
+      "num_knockout_matches": 4,
+      "remix_info": "Shuffle valide en 1 tentative(s)"
+    }
+  },
+  {
+    "num_players": 34,
+    "num_teams": 17,
+    "fmt": "2v2",
+    "success": true,
+    "errors": [],
+    "warnings": [
+      "Override 16: Override 16 > qualifiés disponibles 8"
+    ],
+    "details": {
+      "num_groups": 4,
+      "group_sizes": [
+        5,
+        4,
+        4,
+        4
+      ],
+      "num_qualified": 8,
+      "num_knockout_matches": 4,
+      "remix_info": "Shuffle valide en 3 tentative(s)"
+    }
+  },
+  {
+    "num_players": 36,
+    "num_teams": 18,
+    "fmt": "2v2",
+    "success": true,
+    "errors": [],
+    "warnings": [
+      "Override 16: Override 16 > qualifiés disponibles 8"
+    ],
+    "details": {
+      "num_groups": 4,
+      "group_sizes": [
+        5,
+        5,
+        4,
+        4
+      ],
+      "num_qualified": 8,
+      "num_knockout_matches": 4,
+      "remix_info": "Shuffle valide en 1 tentative(s)"
+    }
+  },
+  {
+    "num_players": 38,
+    "num_teams": 19,
+    "fmt": "2v2",
+    "success": true,
+    "errors": [],
+    "warnings": [
+      "Override 16: Override 16 > qualifiés disponibles 8"
+    ],
+    "details": {
+      "num_groups": 5,
+      "group_sizes": [
+        4,
+        4,
+        4,
+        4,
+        3
+      ],
+      "num_qualified": 8,
+      "num_knockout_matches": 4,
+      "remix_info": "Shuffle valide en 2 tentative(s)"
+    }
+  },
+  {
+    "num_players": 40,
+    "num_teams": 20,
+    "fmt": "2v2",
+    "success": true,
+    "errors": [],
+    "warnings": [
+      "Override 16: Override 16 > qualifiés disponibles 8"
+    ],
+    "details": {
+      "num_groups": 5,
+      "group_sizes": [
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "num_qualified": 8,
+      "num_knockout_matches": 4,
+      "remix_info": "Shuffle valide en 1 tentative(s)"
+    }
+  },
+  {
+    "num_players": 42,
+    "num_teams": 21,
+    "fmt": "2v2",
+    "success": true,
+    "errors": [],
+    "warnings": [
+      "Override 16: Override 16 > qualifiés disponibles 8"
+    ],
+    "details": {
+      "num_groups": 5,
+      "group_sizes": [
+        5,
+        4,
+        4,
+        4,
+        4
+      ],
+      "num_qualified": 8,
+      "num_knockout_matches": 4,
+      "remix_info": "Shuffle valide en 2 tentative(s)"
+    }
+  },
+  {
+    "num_players": 44,
+    "num_teams": 22,
+    "fmt": "2v2",
+    "success": true,
+    "errors": [],
+    "warnings": [
+      "Override 16: Override 16 > qualifiés disponibles 8"
+    ],
+    "details": {
+      "num_groups": 5,
+      "group_sizes": [
+        5,
+        5,
+        4,
+        4,
+        4
+      ],
+      "num_qualified": 8,
+      "num_knockout_matches": 4,
+      "remix_info": "Shuffle valide en 5 tentative(s)"
+    }
+  },
+  {
+    "num_players": 46,
+    "num_teams": 23,
+    "fmt": "2v2",
+    "success": true,
+    "errors": [],
+    "warnings": [
+      "Override 16: Override 16 > qualifiés disponibles 8"
+    ],
+    "details": {
+      "num_groups": 6,
+      "group_sizes": [
+        4,
+        4,
+        4,
+        4,
+        4,
+        3
+      ],
+      "num_qualified": 8,
+      "num_knockout_matches": 4,
+      "remix_info": "Shuffle valide en 1 tentative(s)"
+    }
+  },
+  {
+    "num_players": 48,
+    "num_teams": 24,
+    "fmt": "2v2",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 6,
+      "group_sizes": [
+        4,
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "num_qualified": 16,
+      "num_knockout_matches": 8,
+      "remix_info": "Shuffle valide en 3 tentative(s)"
+    }
+  },
+  {
+    "num_players": 50,
+    "num_teams": 25,
+    "fmt": "2v2",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 6,
+      "group_sizes": [
+        5,
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "num_qualified": 16,
+      "num_knockout_matches": 8,
+      "remix_info": "Shuffle valide en 2 tentative(s)"
+    }
+  },
+  {
+    "num_players": 52,
+    "num_teams": 26,
+    "fmt": "2v2",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 6,
+      "group_sizes": [
+        5,
+        5,
+        4,
+        4,
+        4,
+        4
+      ],
+      "num_qualified": 16,
+      "num_knockout_matches": 8,
+      "remix_info": "Shuffle valide en 2 tentative(s)"
+    }
+  },
+  {
+    "num_players": 54,
+    "num_teams": 27,
+    "fmt": "2v2",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 7,
+      "group_sizes": [
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        3
+      ],
+      "num_qualified": 16,
+      "num_knockout_matches": 8,
+      "remix_info": "Shuffle valide en 7 tentative(s)"
+    }
+  },
+  {
+    "num_players": 56,
+    "num_teams": 28,
+    "fmt": "2v2",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 7,
+      "group_sizes": [
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "num_qualified": 16,
+      "num_knockout_matches": 8,
+      "remix_info": "Shuffle valide en 2 tentative(s)"
+    }
+  },
+  {
+    "num_players": 58,
+    "num_teams": 29,
+    "fmt": "2v2",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 7,
+      "group_sizes": [
+        5,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "num_qualified": 16,
+      "num_knockout_matches": 8,
+      "remix_info": "Shuffle valide en 1 tentative(s)"
+    }
+  },
+  {
+    "num_players": 60,
+    "num_teams": 30,
+    "fmt": "2v2",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 7,
+      "group_sizes": [
+        5,
+        5,
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "num_qualified": 16,
+      "num_knockout_matches": 8,
+      "remix_info": "Shuffle valide en 1 tentative(s)"
+    }
+  },
+  {
+    "num_players": 62,
+    "num_teams": 31,
+    "fmt": "2v2",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 8,
+      "group_sizes": [
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        3
+      ],
+      "num_qualified": 16,
+      "num_knockout_matches": 8,
+      "remix_info": "Shuffle valide en 2 tentative(s)"
+    }
+  },
+  {
+    "num_players": 64,
+    "num_teams": 32,
+    "fmt": "2v2",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 8,
+      "group_sizes": [
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "num_qualified": 16,
+      "num_knockout_matches": 8,
+      "remix_info": "Shuffle valide en 1 tentative(s)"
+    }
+  },
+  {
+    "num_players": 4,
+    "fmt": "1v1",
+    "success": true,
+    "errors": [],
+    "warnings": [],
     "details": {
       "num_groups": 1,
       "group_sizes": [
@@ -49,13 +660,11 @@
     }
   },
   {
-    "num_players": 10,
-    "num_teams": 5,
+    "num_players": 5,
+    "fmt": "1v1",
     "success": true,
     "errors": [],
-    "warnings": [
-      "Remix équipes: Paires identiques entre poules et qualifiés: {frozenset({'Player4', 'Player3'}), frozenset({'Player2', 'Player1'}), frozenset({'Player10', 'Player9'}), frozenset({'Player6', 'Player5'})}"
-    ],
+    "warnings": [],
     "details": {
       "num_groups": 2,
       "group_sizes": [
@@ -67,13 +676,11 @@
     }
   },
   {
-    "num_players": 12,
-    "num_teams": 6,
+    "num_players": 6,
+    "fmt": "1v1",
     "success": true,
     "errors": [],
-    "warnings": [
-      "Remix équipes: Paires identiques entre poules et qualifiés: {frozenset({'Player4', 'Player3'}), frozenset({'Player11', 'Player12'}), frozenset({'Player8', 'Player7'}), frozenset({'Player6', 'Player5'})}"
-    ],
+    "warnings": [],
     "details": {
       "num_groups": 2,
       "group_sizes": [
@@ -85,13 +692,11 @@
     }
   },
   {
-    "num_players": 14,
-    "num_teams": 7,
+    "num_players": 7,
+    "fmt": "1v1",
     "success": true,
     "errors": [],
-    "warnings": [
-      "Remix équipes: Paires identiques entre poules et qualifiés: {frozenset({'Player11', 'Player12'}), frozenset({'Player8', 'Player7'}), frozenset({'Player2', 'Player1'}), frozenset({'Player6', 'Player5'})}"
-    ],
+    "warnings": [],
     "details": {
       "num_groups": 2,
       "group_sizes": [
@@ -103,13 +708,11 @@
     }
   },
   {
-    "num_players": 16,
-    "num_teams": 8,
+    "num_players": 8,
+    "fmt": "1v1",
     "success": true,
     "errors": [],
-    "warnings": [
-      "Remix équipes: Paires identiques entre poules et qualifiés: {frozenset({'Player2', 'Player1'}), frozenset({'Player8', 'Player7'}), frozenset({'Player15', 'Player16'}), frozenset({'Player10', 'Player9'})}"
-    ],
+    "warnings": [],
     "details": {
       "num_groups": 2,
       "group_sizes": [
@@ -121,13 +724,11 @@
     }
   },
   {
-    "num_players": 18,
-    "num_teams": 9,
+    "num_players": 9,
+    "fmt": "1v1",
     "success": true,
     "errors": [],
-    "warnings": [
-      "Remix équipes: Paires identiques entre poules et qualifiés: {frozenset({'Player13', 'Player14'}), frozenset({'Player4', 'Player3'}), frozenset({'Player8', 'Player7'}), frozenset({'Player17', 'Player18'}), frozenset({'Player11', 'Player12'}), frozenset({'Player15', 'Player16'}), frozenset({'Player10', 'Player9'}), frozenset({'Player6', 'Player5'})}"
-    ],
+    "warnings": [],
     "details": {
       "num_groups": 2,
       "group_sizes": [
@@ -139,13 +740,11 @@
     }
   },
   {
-    "num_players": 20,
-    "num_teams": 10,
+    "num_players": 10,
+    "fmt": "1v1",
     "success": true,
     "errors": [],
-    "warnings": [
-      "Remix équipes: Paires identiques entre poules et qualifiés: {frozenset({'Player13', 'Player14'}), frozenset({'Player4', 'Player3'}), frozenset({'Player8', 'Player7'}), frozenset({'Player2', 'Player1'}), frozenset({'Player17', 'Player18'}), frozenset({'Player11', 'Player12'}), frozenset({'Player20', 'Player19'}), frozenset({'Player15', 'Player16'})}"
-    ],
+    "warnings": [],
     "details": {
       "num_groups": 2,
       "group_sizes": [
@@ -157,16 +756,233 @@
     }
   },
   {
-    "num_players": 22,
-    "num_teams": 11,
+    "num_players": 11,
+    "fmt": "1v1",
     "success": true,
     "errors": [],
-    "warnings": [
-      "Remix équipes: Paires identiques entre poules et qualifiés: {frozenset({'Player13', 'Player14'}), frozenset({'Player4', 'Player3'}), frozenset({'Player22', 'Player21'}), frozenset({'Player2', 'Player1'}), frozenset({'Player17', 'Player18'}), frozenset({'Player20', 'Player19'}), frozenset({'Player15', 'Player16'}), frozenset({'Player10', 'Player9'})}"
-    ],
+    "warnings": [],
     "details": {
       "num_groups": 3,
       "group_sizes": [
+        4,
+        4,
+        3
+      ],
+      "num_qualified": 8,
+      "num_knockout_matches": 4
+    }
+  },
+  {
+    "num_players": 12,
+    "fmt": "1v1",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 3,
+      "group_sizes": [
+        4,
+        4,
+        4
+      ],
+      "num_qualified": 8,
+      "num_knockout_matches": 4
+    }
+  },
+  {
+    "num_players": 13,
+    "fmt": "1v1",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 3,
+      "group_sizes": [
+        5,
+        4,
+        4
+      ],
+      "num_qualified": 8,
+      "num_knockout_matches": 4
+    }
+  },
+  {
+    "num_players": 14,
+    "fmt": "1v1",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 3,
+      "group_sizes": [
+        5,
+        5,
+        4
+      ],
+      "num_qualified": 8,
+      "num_knockout_matches": 4
+    }
+  },
+  {
+    "num_players": 15,
+    "fmt": "1v1",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 4,
+      "group_sizes": [
+        4,
+        4,
+        4,
+        3
+      ],
+      "num_qualified": 8,
+      "num_knockout_matches": 4
+    }
+  },
+  {
+    "num_players": 16,
+    "fmt": "1v1",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 4,
+      "group_sizes": [
+        4,
+        4,
+        4,
+        4
+      ],
+      "num_qualified": 8,
+      "num_knockout_matches": 4
+    }
+  },
+  {
+    "num_players": 17,
+    "fmt": "1v1",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 4,
+      "group_sizes": [
+        5,
+        4,
+        4,
+        4
+      ],
+      "num_qualified": 8,
+      "num_knockout_matches": 4
+    }
+  },
+  {
+    "num_players": 18,
+    "fmt": "1v1",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 4,
+      "group_sizes": [
+        5,
+        5,
+        4,
+        4
+      ],
+      "num_qualified": 8,
+      "num_knockout_matches": 4
+    }
+  },
+  {
+    "num_players": 19,
+    "fmt": "1v1",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 5,
+      "group_sizes": [
+        4,
+        4,
+        4,
+        4,
+        3
+      ],
+      "num_qualified": 8,
+      "num_knockout_matches": 4
+    }
+  },
+  {
+    "num_players": 20,
+    "fmt": "1v1",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 5,
+      "group_sizes": [
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "num_qualified": 8,
+      "num_knockout_matches": 4
+    }
+  },
+  {
+    "num_players": 21,
+    "fmt": "1v1",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 5,
+      "group_sizes": [
+        5,
+        4,
+        4,
+        4,
+        4
+      ],
+      "num_qualified": 8,
+      "num_knockout_matches": 4
+    }
+  },
+  {
+    "num_players": 22,
+    "fmt": "1v1",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 5,
+      "group_sizes": [
+        5,
+        5,
+        4,
+        4,
+        4
+      ],
+      "num_qualified": 8,
+      "num_knockout_matches": 4
+    }
+  },
+  {
+    "num_players": 23,
+    "fmt": "1v1",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 6,
+      "group_sizes": [
+        4,
+        4,
+        4,
         4,
         4,
         3
@@ -177,413 +993,176 @@
   },
   {
     "num_players": 24,
-    "num_teams": 12,
+    "fmt": "1v1",
     "success": true,
     "errors": [],
-    "warnings": [
-      "Remix équipes: Paires identiques entre poules et qualifiés: {frozenset({'Player13', 'Player14'}), frozenset({'Player8', 'Player7'}), frozenset({'Player22', 'Player21'}), frozenset({'Player2', 'Player1'}), frozenset({'Player17', 'Player18'}), frozenset({'Player11', 'Player12'}), frozenset({'Player20', 'Player19'}), frozenset({'Player6', 'Player5'})}"
-    ],
+    "warnings": [],
     "details": {
-      "num_groups": 3,
+      "num_groups": 6,
       "group_sizes": [
+        4,
+        4,
+        4,
         4,
         4,
         4
       ],
-      "num_qualified": 8,
-      "num_knockout_matches": 4
+      "num_qualified": 16,
+      "num_knockout_matches": 8
+    }
+  },
+  {
+    "num_players": 25,
+    "fmt": "1v1",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 6,
+      "group_sizes": [
+        5,
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "num_qualified": 16,
+      "num_knockout_matches": 8
     }
   },
   {
     "num_players": 26,
-    "num_teams": 13,
+    "fmt": "1v1",
     "success": true,
     "errors": [],
-    "warnings": [
-      "Remix équipes: Paires identiques entre poules et qualifiés: {frozenset({'Player13', 'Player14'}), frozenset({'Player4', 'Player3'}), frozenset({'Player8', 'Player7'}), frozenset({'Player22', 'Player21'}), frozenset({'Player17', 'Player18'}), frozenset({'Player11', 'Player12'}), frozenset({'Player20', 'Player19'}), frozenset({'Player15', 'Player16'})}"
-    ],
+    "warnings": [],
     "details": {
-      "num_groups": 3,
+      "num_groups": 6,
       "group_sizes": [
         5,
+        5,
+        4,
+        4,
         4,
         4
       ],
-      "num_qualified": 8,
-      "num_knockout_matches": 4
+      "num_qualified": 16,
+      "num_knockout_matches": 8
+    }
+  },
+  {
+    "num_players": 27,
+    "fmt": "1v1",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 7,
+      "group_sizes": [
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        3
+      ],
+      "num_qualified": 16,
+      "num_knockout_matches": 8
     }
   },
   {
     "num_players": 28,
-    "num_teams": 14,
+    "fmt": "1v1",
     "success": true,
     "errors": [],
-    "warnings": [
-      "Remix équipes: Paires identiques entre poules et qualifiés: {frozenset({'Player13', 'Player14'}), frozenset({'Player25', 'Player26'}), frozenset({'Player23', 'Player24'}), frozenset({'Player8', 'Player7'}), frozenset({'Player22', 'Player21'}), frozenset({'Player15', 'Player16'}), frozenset({'Player10', 'Player9'}), frozenset({'Player6', 'Player5'})}"
-    ],
+    "warnings": [],
     "details": {
-      "num_groups": 3,
+      "num_groups": 7,
       "group_sizes": [
-        5,
-        5,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
         4
       ],
-      "num_qualified": 8,
-      "num_knockout_matches": 4
+      "num_qualified": 16,
+      "num_knockout_matches": 8
+    }
+  },
+  {
+    "num_players": 29,
+    "fmt": "1v1",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 7,
+      "group_sizes": [
+        5,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "num_qualified": 16,
+      "num_knockout_matches": 8
     }
   },
   {
     "num_players": 30,
-    "num_teams": 15,
+    "fmt": "1v1",
     "success": true,
     "errors": [],
-    "warnings": [
-      "Remix équipes: Paires identiques entre poules et qualifiés: {frozenset({'Player13', 'Player14'}), frozenset({'Player25', 'Player26'}), frozenset({'Player4', 'Player3'}), frozenset({'Player8', 'Player7'}), frozenset({'Player11', 'Player12'}), frozenset({'Player20', 'Player19'}), frozenset({'Player15', 'Player16'}), frozenset({'Player6', 'Player5'})}"
-    ],
+    "warnings": [],
     "details": {
-      "num_groups": 4,
+      "num_groups": 7,
       "group_sizes": [
+        5,
+        5,
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "num_qualified": 16,
+      "num_knockout_matches": 8
+    }
+  },
+  {
+    "num_players": 31,
+    "fmt": "1v1",
+    "success": true,
+    "errors": [],
+    "warnings": [],
+    "details": {
+      "num_groups": 8,
+      "group_sizes": [
+        4,
+        4,
+        4,
+        4,
         4,
         4,
         4,
         3
       ],
-      "num_qualified": 8,
-      "num_knockout_matches": 4
+      "num_qualified": 16,
+      "num_knockout_matches": 8
     }
   },
   {
     "num_players": 32,
-    "num_teams": 16,
+    "fmt": "1v1",
     "success": true,
     "errors": [],
-    "warnings": [
-      "Remix équipes: Paires identiques entre poules et qualifiés: {frozenset({'Player25', 'Player26'}), frozenset({'Player22', 'Player21'}), frozenset({'Player17', 'Player18'}), frozenset({'Player27', 'Player28'}), frozenset({'Player11', 'Player12'}), frozenset({'Player10', 'Player9'}), frozenset({'Player31', 'Player32'}), frozenset({'Player6', 'Player5'})}"
-    ],
-    "details": {
-      "num_groups": 4,
-      "group_sizes": [
-        4,
-        4,
-        4,
-        4
-      ],
-      "num_qualified": 8,
-      "num_knockout_matches": 4
-    }
-  },
-  {
-    "num_players": 34,
-    "num_teams": 17,
-    "success": true,
-    "errors": [],
-    "warnings": [
-      "Remix équipes: Paires identiques entre poules et qualifiés: {frozenset({'Player13', 'Player14'}), frozenset({'Player22', 'Player21'}), frozenset({'Player30', 'Player29'}), frozenset({'Player17', 'Player18'}), frozenset({'Player11', 'Player12'}), frozenset({'Player15', 'Player16'}), frozenset({'Player10', 'Player9'}), frozenset({'Player27', 'Player28'})}"
-    ],
-    "details": {
-      "num_groups": 4,
-      "group_sizes": [
-        5,
-        4,
-        4,
-        4
-      ],
-      "num_qualified": 8,
-      "num_knockout_matches": 4
-    }
-  },
-  {
-    "num_players": 36,
-    "num_teams": 18,
-    "success": true,
-    "errors": [],
-    "warnings": [
-      "Remix équipes: Paires identiques entre poules et qualifiés: {frozenset({'Player13', 'Player14'}), frozenset({'Player23', 'Player24'}), frozenset({'Player25', 'Player26'}), frozenset({'Player8', 'Player7'}), frozenset({'Player2', 'Player1'}), frozenset({'Player6', 'Player5'}), frozenset({'Player31', 'Player32'}), frozenset({'Player27', 'Player28'})}"
-    ],
-    "details": {
-      "num_groups": 4,
-      "group_sizes": [
-        5,
-        5,
-        4,
-        4
-      ],
-      "num_qualified": 8,
-      "num_knockout_matches": 4
-    }
-  },
-  {
-    "num_players": 38,
-    "num_teams": 19,
-    "success": true,
-    "errors": [],
-    "warnings": [
-      "Remix équipes: Paires identiques entre poules et qualifiés: {frozenset({'Player25', 'Player26'}), frozenset({'Player4', 'Player3'}), frozenset({'Player2', 'Player1'}), frozenset({'Player30', 'Player29'}), frozenset({'Player17', 'Player18'}), frozenset({'Player38', 'Player37'}), frozenset({'Player11', 'Player12'}), frozenset({'Player27', 'Player28'})}"
-    ],
-    "details": {
-      "num_groups": 5,
-      "group_sizes": [
-        4,
-        4,
-        4,
-        4,
-        3
-      ],
-      "num_qualified": 8,
-      "num_knockout_matches": 4
-    }
-  },
-  {
-    "num_players": 40,
-    "num_teams": 20,
-    "success": true,
-    "errors": [],
-    "warnings": [
-      "Remix équipes: Paires identiques entre poules et qualifiés: {frozenset({'Player13', 'Player14'}), frozenset({'Player40', 'Player39'}), frozenset({'Player25', 'Player26'}), frozenset({'Player34', 'Player33'}), frozenset({'Player8', 'Player7'}), frozenset({'Player11', 'Player12'}), frozenset({'Player20', 'Player19'}), frozenset({'Player15', 'Player16'})}"
-    ],
-    "details": {
-      "num_groups": 5,
-      "group_sizes": [
-        4,
-        4,
-        4,
-        4,
-        4
-      ],
-      "num_qualified": 8,
-      "num_knockout_matches": 4
-    }
-  },
-  {
-    "num_players": 42,
-    "num_teams": 21,
-    "success": true,
-    "errors": [],
-    "warnings": [
-      "Remix équipes: Paires identiques entre poules et qualifiés: {frozenset({'Player13', 'Player14'}), frozenset({'Player4', 'Player3'}), frozenset({'Player8', 'Player7'}), frozenset({'Player41', 'Player42'}), frozenset({'Player22', 'Player21'}), frozenset({'Player2', 'Player1'}), frozenset({'Player35', 'Player36'}), frozenset({'Player10', 'Player9'})}"
-    ],
-    "details": {
-      "num_groups": 5,
-      "group_sizes": [
-        5,
-        4,
-        4,
-        4,
-        4
-      ],
-      "num_qualified": 8,
-      "num_knockout_matches": 4
-    }
-  },
-  {
-    "num_players": 44,
-    "num_teams": 22,
-    "success": true,
-    "errors": [],
-    "warnings": [
-      "Remix équipes: Paires identiques entre poules et qualifiés: {frozenset({'Player23', 'Player24'}), frozenset({'Player4', 'Player3'}), frozenset({'Player41', 'Player42'}), frozenset({'Player17', 'Player18'}), frozenset({'Player35', 'Player36'}), frozenset({'Player15', 'Player16'}), frozenset({'Player6', 'Player5'}), frozenset({'Player31', 'Player32'})}"
-    ],
-    "details": {
-      "num_groups": 5,
-      "group_sizes": [
-        5,
-        5,
-        4,
-        4,
-        4
-      ],
-      "num_qualified": 8,
-      "num_knockout_matches": 4
-    }
-  },
-  {
-    "num_players": 46,
-    "num_teams": 23,
-    "success": true,
-    "errors": [],
-    "warnings": [
-      "Remix équipes: Paires identiques entre poules et qualifiés: {frozenset({'Player13', 'Player14'}), frozenset({'Player40', 'Player39'}), frozenset({'Player41', 'Player42'}), frozenset({'Player46', 'Player45'}), frozenset({'Player44', 'Player43'}), frozenset({'Player35', 'Player36'}), frozenset({'Player20', 'Player19'}), frozenset({'Player10', 'Player9'})}"
-    ],
-    "details": {
-      "num_groups": 6,
-      "group_sizes": [
-        4,
-        4,
-        4,
-        4,
-        4,
-        3
-      ],
-      "num_qualified": 8,
-      "num_knockout_matches": 4
-    }
-  },
-  {
-    "num_players": 48,
-    "num_teams": 24,
-    "success": true,
-    "errors": [],
-    "warnings": [
-      "Remix équipes: Paires identiques entre poules et qualifiés: {frozenset({'Player13', 'Player14'}), frozenset({'Player40', 'Player39'}), frozenset({'Player4', 'Player3'}), frozenset({'Player23', 'Player24'}), frozenset({'Player8', 'Player7'}), frozenset({'Player41', 'Player42'}), frozenset({'Player22', 'Player21'}), frozenset({'Player46', 'Player45'}), frozenset({'Player30', 'Player29'}), frozenset({'Player35', 'Player36'}), frozenset({'Player38', 'Player37'}), frozenset({'Player20', 'Player19'}), frozenset({'Player11', 'Player12'}), frozenset({'Player10', 'Player9'}), frozenset({'Player31', 'Player32'}), frozenset({'Player6', 'Player5'})}"
-    ],
-    "details": {
-      "num_groups": 6,
-      "group_sizes": [
-        4,
-        4,
-        4,
-        4,
-        4,
-        4
-      ],
-      "num_qualified": 16,
-      "num_knockout_matches": 8
-    }
-  },
-  {
-    "num_players": 50,
-    "num_teams": 25,
-    "success": true,
-    "errors": [],
-    "warnings": [
-      "Remix équipes: Paires identiques entre poules et qualifiés: {frozenset({'Player23', 'Player24'}), frozenset({'Player40', 'Player39'}), frozenset({'Player34', 'Player33'}), frozenset({'Player50', 'Player49'}), frozenset({'Player25', 'Player26'}), frozenset({'Player22', 'Player21'}), frozenset({'Player46', 'Player45'}), frozenset({'Player30', 'Player29'}), frozenset({'Player17', 'Player18'}), frozenset({'Player44', 'Player43'}), frozenset({'Player11', 'Player12'}), frozenset({'Player27', 'Player28'}), frozenset({'Player15', 'Player16'}), frozenset({'Player10', 'Player9'}), frozenset({'Player31', 'Player32'}), frozenset({'Player6', 'Player5'})}"
-    ],
-    "details": {
-      "num_groups": 6,
-      "group_sizes": [
-        5,
-        4,
-        4,
-        4,
-        4,
-        4
-      ],
-      "num_qualified": 16,
-      "num_knockout_matches": 8
-    }
-  },
-  {
-    "num_players": 52,
-    "num_teams": 26,
-    "success": true,
-    "errors": [],
-    "warnings": [
-      "Remix équipes: Paires identiques entre poules et qualifiés: {frozenset({'Player13', 'Player14'}), frozenset({'Player4', 'Player3'}), frozenset({'Player50', 'Player49'}), frozenset({'Player8', 'Player7'}), frozenset({'Player41', 'Player42'}), frozenset({'Player22', 'Player21'}), frozenset({'Player2', 'Player1'}), frozenset({'Player48', 'Player47'}), frozenset({'Player17', 'Player18'}), frozenset({'Player44', 'Player43'}), frozenset({'Player11', 'Player12'}), frozenset({'Player20', 'Player19'}), frozenset({'Player6', 'Player5'}), frozenset({'Player31', 'Player32'}), frozenset({'Player27', 'Player28'}), frozenset({'Player52', 'Player51'})}"
-    ],
-    "details": {
-      "num_groups": 6,
-      "group_sizes": [
-        5,
-        5,
-        4,
-        4,
-        4,
-        4
-      ],
-      "num_qualified": 16,
-      "num_knockout_matches": 8
-    }
-  },
-  {
-    "num_players": 54,
-    "num_teams": 27,
-    "success": true,
-    "errors": [],
-    "warnings": [
-      "Remix équipes: Paires identiques entre poules et qualifiés: {frozenset({'Player13', 'Player14'}), frozenset({'Player4', 'Player3'}), frozenset({'Player40', 'Player39'}), frozenset({'Player50', 'Player49'}), frozenset({'Player25', 'Player26'}), frozenset({'Player34', 'Player33'}), frozenset({'Player41', 'Player42'}), frozenset({'Player22', 'Player21'}), frozenset({'Player53', 'Player54'}), frozenset({'Player30', 'Player29'}), frozenset({'Player17', 'Player18'}), frozenset({'Player11', 'Player12'}), frozenset({'Player20', 'Player19'}), frozenset({'Player15', 'Player16'}), frozenset({'Player31', 'Player32'}), frozenset({'Player27', 'Player28'})}"
-    ],
-    "details": {
-      "num_groups": 7,
-      "group_sizes": [
-        4,
-        4,
-        4,
-        4,
-        4,
-        4,
-        3
-      ],
-      "num_qualified": 16,
-      "num_knockout_matches": 8
-    }
-  },
-  {
-    "num_players": 56,
-    "num_teams": 28,
-    "success": true,
-    "errors": [],
-    "warnings": [
-      "Remix équipes: Paires identiques entre poules et qualifiés: {frozenset({'Player23', 'Player24'}), frozenset({'Player40', 'Player39'}), frozenset({'Player8', 'Player7'}), frozenset({'Player41', 'Player42'}), frozenset({'Player53', 'Player54'}), frozenset({'Player2', 'Player1'}), frozenset({'Player46', 'Player45'}), frozenset({'Player30', 'Player29'}), frozenset({'Player48', 'Player47'}), frozenset({'Player17', 'Player18'}), frozenset({'Player44', 'Player43'}), frozenset({'Player38', 'Player37'}), frozenset({'Player20', 'Player19'}), frozenset({'Player52', 'Player51'}), frozenset({'Player31', 'Player32'}), frozenset({'Player27', 'Player28'})}"
-    ],
-    "details": {
-      "num_groups": 7,
-      "group_sizes": [
-        4,
-        4,
-        4,
-        4,
-        4,
-        4,
-        4
-      ],
-      "num_qualified": 16,
-      "num_knockout_matches": 8
-    }
-  },
-  {
-    "num_players": 58,
-    "num_teams": 29,
-    "success": true,
-    "errors": [],
-    "warnings": [
-      "Remix équipes: Paires identiques entre poules et qualifiés: {frozenset({'Player13', 'Player14'}), frozenset({'Player25', 'Player26'}), frozenset({'Player40', 'Player39'}), frozenset({'Player50', 'Player49'}), frozenset({'Player23', 'Player24'}), frozenset({'Player41', 'Player42'}), frozenset({'Player46', 'Player45'}), frozenset({'Player30', 'Player29'}), frozenset({'Player48', 'Player47'}), frozenset({'Player57', 'Player58'}), frozenset({'Player17', 'Player18'}), frozenset({'Player38', 'Player37'}), frozenset({'Player11', 'Player12'}), frozenset({'Player20', 'Player19'}), frozenset({'Player52', 'Player51'}), frozenset({'Player27', 'Player28'})}"
-    ],
-    "details": {
-      "num_groups": 7,
-      "group_sizes": [
-        5,
-        4,
-        4,
-        4,
-        4,
-        4,
-        4
-      ],
-      "num_qualified": 16,
-      "num_knockout_matches": 8
-    }
-  },
-  {
-    "num_players": 60,
-    "num_teams": 30,
-    "success": true,
-    "errors": [],
-    "warnings": [
-      "Remix équipes: Paires identiques entre poules et qualifiés: {frozenset({'Player13', 'Player14'}), frozenset({'Player40', 'Player39'}), frozenset({'Player4', 'Player3'}), frozenset({'Player50', 'Player49'}), frozenset({'Player25', 'Player26'}), frozenset({'Player55', 'Player56'}), frozenset({'Player53', 'Player54'}), frozenset({'Player46', 'Player45'}), frozenset({'Player48', 'Player47'}), frozenset({'Player17', 'Player18'}), frozenset({'Player38', 'Player37'}), frozenset({'Player11', 'Player12'}), frozenset({'Player20', 'Player19'}), frozenset({'Player52', 'Player51'}), frozenset({'Player31', 'Player32'}), frozenset({'Player59', 'Player60'})}"
-    ],
-    "details": {
-      "num_groups": 7,
-      "group_sizes": [
-        5,
-        5,
-        4,
-        4,
-        4,
-        4,
-        4
-      ],
-      "num_qualified": 16,
-      "num_knockout_matches": 8
-    }
-  },
-  {
-    "num_players": 62,
-    "num_teams": 31,
-    "success": true,
-    "errors": [],
-    "warnings": [
-      "Remix équipes: Paires identiques entre poules et qualifiés: {frozenset({'Player25', 'Player26'}), frozenset({'Player50', 'Player49'}), frozenset({'Player8', 'Player7'}), frozenset({'Player34', 'Player33'}), frozenset({'Player22', 'Player21'}), frozenset({'Player53', 'Player54'}), frozenset({'Player2', 'Player1'}), frozenset({'Player48', 'Player47'}), frozenset({'Player44', 'Player43'}), frozenset({'Player57', 'Player58'}), frozenset({'Player11', 'Player12'}), frozenset({'Player38', 'Player37'}), frozenset({'Player15', 'Player16'}), frozenset({'Player27', 'Player28'}), frozenset({'Player59', 'Player60'}), frozenset({'Player62', 'Player61'})}"
-    ],
+    "warnings": [],
     "details": {
       "num_groups": 8,
       "group_sizes": [
@@ -594,24 +1173,22 @@
         4,
         4,
         4,
-        3
+        4
       ],
       "num_qualified": 16,
       "num_knockout_matches": 8
     }
   },
   {
-    "num_players": 64,
-    "num_teams": 32,
+    "num_players": 33,
+    "fmt": "1v1",
     "success": true,
     "errors": [],
-    "warnings": [
-      "Remix équipes: Paires identiques entre poules et qualifiés: {frozenset({'Player13', 'Player14'}), frozenset({'Player4', 'Player3'}), frozenset({'Player25', 'Player26'}), frozenset({'Player50', 'Player49'}), frozenset({'Player8', 'Player7'}), frozenset({'Player55', 'Player56'}), frozenset({'Player2', 'Player1'}), frozenset({'Player30', 'Player29'}), frozenset({'Player63', 'Player64'}), frozenset({'Player57', 'Player58'}), frozenset({'Player35', 'Player36'}), frozenset({'Player11', 'Player12'}), frozenset({'Player20', 'Player19'}), frozenset({'Player10', 'Player9'}), frozenset({'Player59', 'Player60'}), frozenset({'Player62', 'Player61'})}"
-    ],
+    "warnings": [],
     "details": {
       "num_groups": 8,
       "group_sizes": [
-        4,
+        5,
         4,
         4,
         4,

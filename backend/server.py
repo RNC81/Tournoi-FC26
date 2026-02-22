@@ -34,7 +34,7 @@ if not SECRET_KEY:
     # FAIL-FAST: On empêche le démarrage si la clé est absente
     raise ValueError("CRITICAL: La variable d'environnement SECRET_KEY est manquante. Impossible de démarrer de manière sécurisée.")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30 
+ACCESS_TOKEN_EXPIRE_MINUTES = 480  # 8 heures — évite les déconnexions pendant un tournoi
 
 # --- Rate Limiter Setup ---
 limiter = Limiter(key_func=get_remote_address)
@@ -568,15 +568,22 @@ async def create_tournament(
     return Tournament(**created)
 
 @api_router.post("/tournament/{tournament_id}/complete_groups", response_model=Tournament)
-async def complete_groups_and_draw_knockout(tournament_id: str):
+async def complete_groups_and_draw_knockout(
+    tournament_id: str,
+    num_qualified: Optional[int] = Query(None, description="Nombre d'équipes qualifiées (override auto)"),
+    remix: bool = Query(False, description="Remixer les équipes 2v2 après les poules"),
+):
     tournament_data = await tournaments_collection.find_one({"_id": tournament_id})
     if not tournament_data: raise HTTPException(status_code=404, detail="Tournoi non trouvé")
     tournament = Tournament(**tournament_data)
     if not all(m.played for g in tournament.groups for m in g.matches): raise HTTPException(status_code=400, detail="Tous les matchs de poule ne sont pas encore joués")
     
     qualified_entities = determine_qualifiers_logic(tournament.groups, len(tournament.players))
-    final_qualified_list = qualified_entities 
-    if tournament.format == "2v2":
+    # Override par choix admin (ex: 8 quarts ou 16 huitièmes)
+    if num_qualified and 2 <= num_qualified <= len(qualified_entities):
+        qualified_entities = qualified_entities[:num_qualified]
+    final_qualified_list = qualified_entities
+    if tournament.format == "2v2" and remix:
         # Logique 2v2 reshuffle - CORRECTION BUG #2 (VERSION FINALE)
         # Capturer UNIQUEMENT les paires des équipes QUALIFIÉES (pas toutes les poules)
         # Cela permet de remixer les joueurs en évitant qu'ils rejouent avec le même coéquipier
