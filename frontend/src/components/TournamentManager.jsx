@@ -37,6 +37,7 @@ const TournamentManager = ({ isAdmin, initialData }) => {
 
   const [isLoading, setIsLoading] = useState(!initialData);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [viewingStep, setViewingStep] = useState(null); // null = vue normale (currentStep)
 
   const prevStepRef = useRef(currentStep);
   const lastUpdateRef = useRef(initialData?.updatedAt ? new Date(initialData.updatedAt).getTime() : 0);
@@ -185,17 +186,20 @@ const TournamentManager = ({ isAdmin, initialData }) => {
     );
   }
 
+  const activeView = viewingStep || currentStep;
+  const isReadOnlyView = viewingStep !== null && viewingStep !== currentStep;
+
   const renderStep = () => {
-    switch (currentStep) {
+    switch (activeView) {
       case 'config':
-        return <Step1Registration onComplete={handleTournamentUpdate} isAdmin={isAdmin} />;
+        return <Step1Registration onComplete={handleTournamentUpdate} isAdmin={isAdmin && !isReadOnlyView} />;
       case 'groups':
-        return <Step2GroupStage tournamentId={tournamentId} players={players} groups={groups} onGroupsDrawn={handleTournamentUpdate} onScoreUpdate={handleTournamentUpdate} onCompleteGroups={handleTournamentUpdate} isAdmin={isAdmin} format={format} />;
+        return <Step2GroupStage tournamentId={tournamentId} players={players} groups={groups} onGroupsDrawn={handleTournamentUpdate} onScoreUpdate={handleTournamentUpdate} onCompleteGroups={handleTournamentUpdate} isAdmin={isAdmin && !isReadOnlyView} format={format} />;
       case 'qualified':
-        return <Step3Qualification tournamentId={tournamentId} groups={groups} qualifiedPlayers={qualifiedPlayers} eliminatedPlayers={eliminatedPlayers} onKnockoutDrawComplete={handleTournamentUpdate} isAdmin={isAdmin} />;
+        return <Step3Qualification tournamentId={tournamentId} groups={groups} qualifiedPlayers={qualifiedPlayers} eliminatedPlayers={eliminatedPlayers} onKnockoutDrawComplete={handleTournamentUpdate} isAdmin={isAdmin && !isReadOnlyView} />;
       case 'knockout':
       case 'finished':
-        return <Step4Bracket tournamentId={tournamentId} knockoutMatches={knockoutMatches} onScoreUpdate={handleTournamentUpdate} winner={winner} groups={groups} thirdPlace={thirdPlace} isAdmin={isAdmin} format={format} />;
+        return <Step4Bracket tournamentId={tournamentId} knockoutMatches={knockoutMatches} onScoreUpdate={handleTournamentUpdate} winner={winner} groups={groups} thirdPlace={thirdPlace} isAdmin={isAdmin && !isReadOnlyView} format={format} />;
       default:
         return isAdmin ? <Step1Registration onComplete={handleTournamentUpdate} isAdmin={isAdmin} /> : null;
     }
@@ -264,21 +268,35 @@ const TournamentManager = ({ isAdmin, initialData }) => {
             const stepOrder = ['config', 'groups', 'qualified', 'knockout', 'finished'];
             const currentStepIndex = currentStep === 'no_tournament' ? -1 : stepOrder.indexOf(currentStep);
             const thisStepLogicalIndex = stepOrder.findIndex(s => s === stepInfo.stepKey);
-            const isActive = (currentStep === stepInfo.stepKey) || (stepInfo.stepKey === 'knockout' && currentStep === 'finished');
+            const isActive = (activeView === stepInfo.stepKey) || (stepInfo.stepKey === 'knockout' && activeView === 'finished');
             const isCompleted = currentStepIndex > thisStepLogicalIndex && thisStepLogicalIndex !== -1;
+            const isPast = isCompleted; // phases visitables en lecture seule
 
-            // Style education first pour le stepper
             const activeStyle = "bg-blue-400 text-black shadow-[0_0_15px_rgba(59,130,246,0.4)] scale-110 border-0";
-            const completedStyle = "bg-[#22C55E] text-white border-0";
+            const completedStyle = "bg-[#22C55E] text-white border-0 cursor-pointer hover:scale-105 hover:shadow-[0_0_12px_rgba(34,197,94,0.4)] transition-transform";
             const pendingStyle = "bg-[#1F1F1F] text-zinc-500 border border-white/10";
 
             const lineCompleted = currentStepIndex >= (index + 1 < arr.length ? stepOrder.findIndex(s => s === arr[index + 1].stepKey) : -1);
 
+            const handleStepClick = () => {
+              if (isPast && !isActive) {
+                // Naviguer vers une étape passée en lecture seule
+                setViewingStep(stepInfo.stepKey);
+              } else if (isActive && viewingStep !== null) {
+                // Cliquer sur l'étape active remet en vue normale
+                setViewingStep(null);
+              }
+            };
+
             return (
               <div key={stepInfo.num} className="flex flex-col sm:flex-row items-center w-full sm:w-auto">
                 <div className="relative flex flex-col items-center z-10">
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg transition-all duration-300 ${isActive ? activeStyle : isCompleted ? completedStyle : pendingStyle}`}>
-                    {isCompleted ? <Check className="w-6 h-6" /> : stepInfo.num}
+                  <div
+                    onClick={handleStepClick}
+                    title={isPast && !isActive ? `Voir la phase "${stepInfo.name}" (lecture seule)` : undefined}
+                    className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg transition-all duration-300 ${isActive ? activeStyle : isCompleted ? completedStyle : pendingStyle}`}
+                  >
+                    {isCompleted && !isActive ? <Check className="w-6 h-6" /> : stepInfo.num}
                   </div>
                   <span className={`absolute top-full mt-3 text-xs font-medium whitespace-nowrap ${isActive ? 'text-white' : 'text-zinc-500'}`}>{stepInfo.name}</span>
                 </div>
@@ -292,7 +310,22 @@ const TournamentManager = ({ isAdmin, initialData }) => {
           })}
         </div>
 
-        <div key={currentStep} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div key={activeView} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {/* Bannière lecture seule */}
+          {isReadOnlyView && (
+            <div className="mb-6 flex items-center justify-between bg-amber-500/10 border border-amber-500/30 rounded-2xl px-5 py-3">
+              <div className="flex items-center gap-2 text-amber-400">
+                <span className="text-lg">👁</span>
+                <span className="font-medium text-sm">Vue lecture seule — cette phase est terminée</span>
+              </div>
+              <button
+                onClick={() => setViewingStep(null)}
+                className="text-xs text-amber-400 hover:text-white border border-amber-500/40 hover:border-white/30 px-3 py-1.5 rounded-lg transition-all"
+              >
+                ← Retour à la phase actuelle
+              </button>
+            </div>
+          )}
           {renderStep()}
         </div>
       </div>

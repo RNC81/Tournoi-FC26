@@ -107,7 +107,15 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
 
   const entityCount = format === '2v2' ? players.length / 2 : players.length;
   const autoQualifiedCount = getTargetQualifiedCount(entityCount);
+  // Ne pas pré-afficher la qualification avant que l'admin ait choisi dans le dialog
   const displayQualifiedCount = chosenQualified || autoQualifiedCount;
+
+  const getRoundName = (n) => {
+    if (n <= 2) return 'Finale';
+    if (n <= 4) return 'Demi-finales';
+    if (n <= 8) return 'Quarts de finale';
+    return 'Huitièmes de finale';
+  };
 
   const allPlayersRanked = useMemo(() => {
     if (generatedGroups.length === 0) return [];
@@ -210,7 +218,10 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
             <div className="mt-16 EF-card p-8 border-blue-500/20 bg-gradient-to-b from-[#1F1F1F] to-[#141414]">
               <div className="text-center mb-8">
                 <h3 className="text-2xl font-bold text-white mb-2">Classement Général</h3>
-                <p className="text-zinc-400">Les <span className="text-blue-400 font-bold">{displayQualifiedCount}</span> premiers sont qualifiés pour la phase finale.</p>
+                {isAdmin
+                  ? <p className="text-zinc-400 text-sm">Cliquez sur <span className="text-blue-400 font-medium">"Valider"</span> pour choisir le format et confirmer les qualifiés.</p>
+                  : <p className="text-zinc-400 text-sm">En attente de la décision de l'organisateur.</p>
+                }
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -238,10 +249,7 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
                           <td className={`text-center py-3 px-2 font-bold ${isQualified ? 'text-white' : 'text-zinc-500'}`}>{player.points}</td>
                           <td className="text-center py-3 px-2 text-zinc-500">{player.goalDiff > 0 ? '+' : ''}{player.goalDiff}</td>
                           <td className="text-center py-3 px-2">
-                            {isQualified
-                              ? <span className="text-blue-400 text-xs font-bold uppercase bg-blue-500/10 px-2 py-1 rounded">Qualifié</span>
-                              : <span className="text-zinc-600 text-xs uppercase">Éliminé</span>
-                            }
+                            <span className="text-zinc-600 text-xs">—</span>
                           </td>
                         </tr>
                       );
@@ -319,12 +327,12 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
                     onClick={() => setChosenQualified(n)}
                     className={`p-3 rounded-xl border text-sm font-medium transition-all ${chosenQualified === n ? 'border-blue-500 bg-blue-500/10 text-white' : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/30'}`}
                   >
-                    {n}<br /><span className="text-xs text-zinc-500">{n <= 8 ? 'Quarts' : 'Huitièmes'}</span>
+                    {n}<br /><span className="text-xs text-zinc-500">{getRoundName(n)}</span>
                   </button>
                 ))}
               </div>
               <p className="text-zinc-600 text-xs mt-2 ml-1">
-                {(chosenQualified || autoQualifiedCount) <= 8 ? '→ Quarts de finale' : '→ Huitièmes de finale'}
+                → {getRoundName(chosenQualified || autoQualifiedCount)}
               </p>
             </div>
 
