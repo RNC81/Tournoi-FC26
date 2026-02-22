@@ -27,12 +27,23 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [chosenQualified, setChosenQualified] = useState(null); // null = auto
   const [doRemix, setDoRemix] = useState(false);
+  // Nombre de qualifiés confirmé par l'admin — le classement ne s'affiche qu'après
+  const [confirmedQualifiedCount, setConfirmedQualifiedCount] = useState(null);
 
   const { toast } = useToast();
 
   useEffect(() => {
     setGeneratedGroups(groups || []);
   }, [groups]);
+
+  // Ouvrir automatiquement le dialog de choix de format quand tous les matchs sont joués
+  useEffect(() => {
+    if (allMatchesPlayed && isAdmin && !confirmedQualifiedCount && !isConfirmDialogOpen) {
+      setChosenQualified(null);
+      setDoRemix(false);
+      setIsConfirmDialogOpen(true);
+    }
+  }, [allMatchesPlayed, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleMatchClick = (groupIndex, match) => {
     if (!isAdmin) {
@@ -82,14 +93,18 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
   };
 
   const handleCompleteStageClick = async () => {
+    const finalCount = chosenQualified || autoQualifiedCount;
     setIsCompleting(true);
     setIsConfirmDialogOpen(false);
+    // Afficher le classement avec le bon count avant de recharger
+    setConfirmedQualifiedCount(finalCount);
     try {
       await completeGroupStage(tournamentId, chosenQualified, doRemix);
       toast({ title: 'Phase de poules terminée !', description: 'Chargement de la phase finale...' });
-      setTimeout(() => { window.location.reload(); }, 500);
+      setTimeout(() => { window.location.reload(); }, 1200);
     } catch (error) {
       console.error(error);
+      setConfirmedQualifiedCount(null);
       let errorMsg = "Impossible de passer à la suite.";
       if (error.response?.data?.detail) {
         const detail = error.response.data.detail;
@@ -107,8 +122,8 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
 
   const entityCount = format === '2v2' ? players.length / 2 : players.length;
   const autoQualifiedCount = getTargetQualifiedCount(entityCount);
-  // Ne pas pré-afficher la qualification avant que l'admin ait choisi dans le dialog
-  const displayQualifiedCount = chosenQualified || autoQualifiedCount;
+  // n'afficher le classement avec highlights qu'après confirmation
+  const displayQualifiedCount = confirmedQualifiedCount || autoQualifiedCount;
 
   const getRoundName = (n) => {
     if (n <= 2) return 'Finale';
@@ -213,15 +228,15 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
             ))}
           </div>
 
-          {/* CLASSEMENT GÉNÉRAL */}
-          {allMatchesPlayed && (
+          {/* CLASSEMENT GÉNÉRAL — visible seulement après confirmation du format */}
+          {allMatchesPlayed && confirmedQualifiedCount && (
             <div className="mt-16 EF-card p-8 border-blue-500/20 bg-gradient-to-b from-[#1F1F1F] to-[#141414]">
               <div className="text-center mb-8">
                 <h3 className="text-2xl font-bold text-white mb-2">Classement Général</h3>
-                {isAdmin
-                  ? <p className="text-zinc-400 text-sm">Cliquez sur <span className="text-blue-400 font-medium">"Valider"</span> pour choisir le format et confirmer les qualifiés.</p>
-                  : <p className="text-zinc-400 text-sm">En attente de la décision de l'organisateur.</p>
-                }
+                <p className="text-zinc-400 text-sm">
+                  Les <span className="text-blue-400 font-bold">{confirmedQualifiedCount}</span> premiers sont qualifiés
+                  — <span className="text-zinc-500">{getRoundName(confirmedQualifiedCount)}</span>
+                </p>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -249,7 +264,10 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
                           <td className={`text-center py-3 px-2 font-bold ${isQualified ? 'text-white' : 'text-zinc-500'}`}>{player.points}</td>
                           <td className="text-center py-3 px-2 text-zinc-500">{player.goalDiff > 0 ? '+' : ''}{player.goalDiff}</td>
                           <td className="text-center py-3 px-2">
-                            <span className="text-zinc-600 text-xs">—</span>
+                            {isQualified
+                              ? <span className="text-blue-400 text-xs font-bold uppercase bg-blue-500/10 px-2 py-1 rounded">Qualifié</span>
+                              : <span className="text-zinc-600 text-xs uppercase">Éliminé</span>
+                            }
                           </td>
                         </tr>
                       );
@@ -260,16 +278,10 @@ const Step2GroupStage = ({ tournamentId, players, groups, onGroupsDrawn, onScore
             </div>
           )}
 
-          {isAdmin && allMatchesPlayed && (
-            <div className="flex justify-center mt-12 mb-8">
-              <Button
-                onClick={handleOpenConfirmDialog}
-                disabled={isCompleting}
-                className="EF-btn-primary py-6 px-10 text-lg shadow-[0_0_30px_rgba(59,130,246,0.2)]"
-              >
-                {isCompleting ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : <ArrowRight className="ml-2 w-5 h-5" />}
-                {isCompleting ? "Validation..." : "Valider et passer à la Phase Finale"}
-              </Button>
+          {/* Message d'attente pour les spectateurs quand matchs finis mais admin n'a pas encore choisi */}
+          {allMatchesPlayed && !confirmedQualifiedCount && !isAdmin && (
+            <div className="mt-16 EF-card p-8 text-center border-white/5">
+              <p className="text-zinc-500">⏳ En attente de la décision de l'organisateur pour la phase finale...</p>
             </div>
           )}
         </>

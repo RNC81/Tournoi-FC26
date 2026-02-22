@@ -482,34 +482,40 @@ def update_group_standings_logic(group: Group) -> List[PlayerStats]:
     for i, player in enumerate(sorted_players): player.groupPosition = i + 1
     return sorted_players
 
-def determine_qualifiers_logic(groups: List[Group], total_players: int) -> List[str]:
-    total_entities = sum(len(g.players) for g in groups)
-    if total_entities <= 8: target = 4
-    elif total_entities <= 16: target = 8
-    else: target = 16 if total_entities >= 24 else 8 
+def determine_qualifiers_with_target(groups: List[Group], target: int) -> List[str]:
+    """Qualifie exactement `target` équipes d'après leur classement en poule."""
     num_groups = len(groups)
+    if num_groups == 0 or target <= 0: return []
     qualified = []
     if target % num_groups == 0:
         qualifiers_per_group = target // num_groups
         for group in groups:
-            sorted_players_in_group = update_group_standings_logic(group)
-            group.players = sorted_players_in_group
-            for i, player in enumerate(sorted_players_in_group):
+            sorted_players = update_group_standings_logic(group)
+            group.players = sorted_players
+            for i, player in enumerate(sorted_players):
                 if i < qualifiers_per_group: qualified.append(player.name)
     else:
-        base_qualifiers_per_group = math.floor(target / num_groups)
-        best_finishers_pool = []
+        base = math.floor(target / num_groups)
+        pool = []
         for group in groups:
-            sorted_players_in_group = update_group_standings_logic(group)
-            group.players = sorted_players_in_group 
-            for i, player in enumerate(sorted_players_in_group):
-                if i < base_qualifiers_per_group: qualified.append(player.name)
-                else: best_finishers_pool.append(player) 
+            sorted_players = update_group_standings_logic(group)
+            group.players = sorted_players
+            for i, player in enumerate(sorted_players):
+                if i < base: qualified.append(player.name)
+                else: pool.append(player)
         needed = target - len(qualified)
-        if needed > 0 and best_finishers_pool:
-            best_finishers_pool.sort(key=lambda p: (p.points, p.goalDiff, p.goalsFor), reverse=True)
-            qualified.extend(p.name for p in best_finishers_pool[:needed])
+        if needed > 0 and pool:
+            pool.sort(key=lambda p: (p.points, p.goalDiff, p.goalsFor), reverse=True)
+            qualified.extend(p.name for p in pool[:needed])
     return qualified[:target]
+
+def determine_qualifiers_logic(groups: List[Group], total_players: int) -> List[str]:
+    """Calcule automatiquement le nombre de qualifiés et délègue à determine_qualifiers_with_target."""
+    total_entities = sum(len(g.players) for g in groups)
+    if total_entities <= 8: target = 4
+    elif total_entities <= 16: target = 8
+    else: target = 16 if total_entities >= 24 else 8
+    return determine_qualifiers_with_target(groups, target)
 
 def generate_knockout_matches_logic(qualified_names: List[str], single_round: bool = False) -> List[KnockoutMatch]:
     num = len(qualified_names)
@@ -578,10 +584,14 @@ async def complete_groups_and_draw_knockout(
     tournament = Tournament(**tournament_data)
     if not all(m.played for g in tournament.groups for m in g.matches): raise HTTPException(status_code=400, detail="Tous les matchs de poule ne sont pas encore joués")
     
-    qualified_entities = determine_qualifiers_logic(tournament.groups, len(tournament.players))
-    # Override par choix admin (ex: 8 quarts ou 16 huitièmes)
-    if num_qualified and 2 <= num_qualified <= len(qualified_entities):
-        qualified_entities = qualified_entities[:num_qualified]
+    # Si l'admin a choisi un nombre de qualifiés, on recalcule DIRECTEMENT avec ce target
+    # (sinon determine_qualifiers_logic aurait capé à son auto-target avant l'override)
+    if num_qualified and num_qualified >= 2:
+        total_entities = sum(len(g.players) for g in tournament.groups)
+        safe_target = min(num_qualified, total_entities)
+        qualified_entities = determine_qualifiers_with_target(tournament.groups, safe_target)
+    else:
+        qualified_entities = determine_qualifiers_logic(tournament.groups, len(tournament.players))
     final_qualified_list = qualified_entities
     if tournament.format == "2v2" and remix:
         # Logique 2v2 reshuffle - CORRECTION BUG #2 (VERSION FINALE)
